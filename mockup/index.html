@@ -345,160 +345,161 @@
       </div>
     </div>
 
-    <!-- Chart + Side -->
+    <!-- Fila 1: Chart + En ejecución ahora (misma altura) -->
     <div class="grid grid-cols-3 gap-4">
       <!-- Line chart -->
-      <div class="col-span-2 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h3 class="text-sm font-semibold text-gray-700 mb-0.5">Tendencia de backups — últimos 14 días</h3>
-        <div class="mt-4">
-          <!-- SVG Line Chart -->
-          <svg viewBox="0 0 600 120" class="w-full" style="height:140px">
-            <!-- Grid lines -->
+      <div class="col-span-2 bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col">
+        <h3 class="text-sm font-semibold text-gray-700">Tendencia de backups — últimos 14 días</h3>
+        <div class="flex-1 mt-4">
+          <svg viewBox="0 0 600 130" class="w-full h-full" style="min-height:150px">
             <line x1="0" y1="20" x2="600" y2="20" stroke="#f1f5f9" stroke-width="1"/>
-            <line x1="0" y1="50" x2="600" y2="50" stroke="#f1f5f9" stroke-width="1"/>
-            <line x1="0" y1="80" x2="600" y2="80" stroke="#f1f5f9" stroke-width="1"/>
+            <line x1="0" y1="52" x2="600" y2="52" stroke="#f1f5f9" stroke-width="1"/>
+            <line x1="0" y1="84" x2="600" y2="84" stroke="#f1f5f9" stroke-width="1"/>
             <line x1="0" y1="110" x2="600" y2="110" stroke="#f1f5f9" stroke-width="1"/>
-            <!-- Y labels -->
-            <text x="0" y="18" font-size="9" fill="#94a3b8">8</text>
-            <text x="0" y="48" font-size="9" fill="#94a3b8">6</text>
-            <text x="0" y="78" font-size="9" fill="#94a3b8">4</text>
-            <text x="0" y="108" font-size="9" fill="#94a3b8">2</text>
-            <!-- Area fill -->
+            <text x="4" y="18" font-size="9" fill="#94a3b8">8</text>
+            <text x="4" y="50" font-size="9" fill="#94a3b8">6</text>
+            <text x="4" y="82" font-size="9" fill="#94a3b8">4</text>
+            <text x="4" y="108" font-size="9" fill="#94a3b8">2</text>
             <defs>
               <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#4361ee" stop-opacity="0.15"/>
+                <stop offset="0%" stop-color="#4361ee" stop-opacity="0.12"/>
                 <stop offset="100%" stop-color="#4361ee" stop-opacity="0"/>
               </linearGradient>
             </defs>
-            <path d="M14,110 L55,110 L98,95 L141,95 L184,80 L227,80 L270,65 L313,50 L356,35 L399,22 L442,35 L485,55 L528,110 L571,110 L571,115 L14,115 Z" fill="url(#areaGrad)"/>
-            <!-- Line -->
-            <polyline points="14,110 55,110 98,95 141,95 184,80 227,80 270,65 313,50 356,35 399,22 442,35 485,55 528,110 571,110"
+            <path d="M18,110 L60,110 L102,96 L144,96 L186,82 L228,82 L270,66 L312,50 L354,35 L396,20 L438,35 L480,55 L522,110 L564,110 L564,116 L18,116 Z" fill="url(#areaGrad)"/>
+            <polyline points="18,110 60,110 102,96 144,96 186,82 228,82 270,66 312,50 354,35 396,20 438,35 480,55 522,110 564,110"
               fill="none" stroke="#4361ee" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <!-- Dots -->
-            <circle cx="399" cy="22" r="4" fill="#4361ee"/>
-            <circle cx="442" cy="35" r="3" fill="#4361ee" opacity=".5"/>
-            <!-- X labels -->
-            <text x="10" y="126" font-size="8.5" fill="#94a3b8">18 mar</text>
-            <text x="53" y="126" font-size="8.5" fill="#94a3b8">19 mar</text>
-            <text x="96" y="126" font-size="8.5" fill="#94a3b8">20 mar</text>
-            <text x="139" y="126" font-size="8.5" fill="#94a3b8">21 mar</text>
+            <circle cx="396" cy="20" r="4" fill="#4361ee"/>
+            <circle cx="438" cy="35" r="3" fill="#4361ee" opacity=".5"/>
+            <text x="14"  y="126" font-size="8.5" fill="#94a3b8">18 mar</text>
+            <text x="56"  y="126" font-size="8.5" fill="#94a3b8">19 mar</text>
+            <text x="98"  y="126" font-size="8.5" fill="#94a3b8">20 mar</text>
+            <text x="140" y="126" font-size="8.5" fill="#94a3b8">21 mar</text>
             <text x="182" y="126" font-size="8.5" fill="#94a3b8">22 mar</text>
-            <text x="225" y="126" font-size="8.5" fill="#94a3b8">23 mar</text>
-            <text x="268" y="126" font-size="8.5" fill="#94a3b8">24 mar</text>
-            <text x="311" y="126" font-size="8.5" fill="#94a3b8">25 mar</text>
-            <text x="354" y="126" font-size="8.5" fill="#94a3b8">26 mar</text>
-            <text x="397" y="126" font-size="8.5" fill="#94a3b8">27 mar</text>
-            <text x="440" y="126" font-size="8.5" fill="#94a3b8">28 mar</text>
-            <text x="483" y="126" font-size="8.5" fill="#94a3b8">29 mar</text>
-            <text x="526" y="126" font-size="8.5" fill="#94a3b8">30 mar</text>
-            <text x="562" y="126" font-size="8.5" fill="#94a3b8">31 mar</text>
+            <text x="224" y="126" font-size="8.5" fill="#94a3b8">23 mar</text>
+            <text x="266" y="126" font-size="8.5" fill="#94a3b8">24 mar</text>
+            <text x="308" y="126" font-size="8.5" fill="#94a3b8">25 mar</text>
+            <text x="350" y="126" font-size="8.5" fill="#94a3b8">26 mar</text>
+            <text x="392" y="126" font-size="8.5" fill="#94a3b8">27 mar</text>
+            <text x="434" y="126" font-size="8.5" fill="#94a3b8">28 mar</text>
+            <text x="476" y="126" font-size="8.5" fill="#94a3b8">29 mar</text>
+            <text x="518" y="126" font-size="8.5" fill="#94a3b8">30 mar</text>
+            <text x="556" y="126" font-size="8.5" fill="#94a3b8">31 mar</text>
           </svg>
         </div>
       </div>
 
-      <!-- Right column -->
-      <div class="space-y-4">
-
-        <!-- En ejecución ahora -->
-        <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-          <h3 class="text-sm font-semibold text-gray-700 mb-3">En ejecución ahora</h3>
-          <div class="space-y-3">
-            <!-- Job 1 -->
-            <div class="bg-gray-50 border border-gray-100 rounded-lg p-3">
-              <div class="flex items-center justify-between mb-2">
-                <span class="text-xs font-semibold text-gray-700">MySQL · Producción</span>
-                <span class="inline-flex items-center gap-1 text-xs font-medium text-primary">
-                  <span class="w-1.5 h-1.5 rounded-full bg-primary pulse inline-block"></span>Activo
-                </span>
-              </div>
-              <div class="h-1.5 bg-gray-200 rounded-full overflow-hidden mb-1.5">
-                <div class="h-full bg-primary rounded-full bar-fill" style="width:68%"></div>
-              </div>
-              <div class="flex justify-between text-xs text-gray-400">
-                <span>68%</span><span>~2 min</span>
-              </div>
+      <!-- En ejecución ahora -->
+      <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col">
+        <h3 class="text-sm font-semibold text-gray-700 mb-3">En ejecución ahora</h3>
+        <div class="space-y-3 flex-1">
+          <!-- Job 1 -->
+          <div class="bg-gray-50 border border-gray-100 rounded-lg p-3">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-semibold text-gray-700">MySQL · Producción</span>
+              <span class="inline-flex items-center gap-1 text-xs font-medium text-primary">
+                <span class="w-1.5 h-1.5 rounded-full bg-primary pulse inline-block"></span>Activo
+              </span>
             </div>
-            <!-- Job 2 -->
-            <div class="bg-gray-50 border border-gray-100 rounded-lg p-3">
-              <div class="flex items-center justify-between mb-2">
-                <span class="text-xs font-semibold text-gray-700">/var/www · Web</span>
-                <span class="inline-flex items-center gap-1 text-xs font-medium text-primary">
-                  <span class="w-1.5 h-1.5 rounded-full bg-primary pulse inline-block"></span>Activo
-                </span>
-              </div>
-              <div class="h-1.5 bg-gray-200 rounded-full overflow-hidden mb-1.5">
-                <div class="h-full bg-primary rounded-full bar-fill" style="width:32%"></div>
-              </div>
-              <div class="flex justify-between text-xs text-gray-400">
-                <span>32%</span><span>~8 min</span>
-              </div>
+            <div class="h-1.5 bg-gray-200 rounded-full overflow-hidden mb-1.5">
+              <div class="h-full bg-primary rounded-full bar-fill" style="width:68%"></div>
+            </div>
+            <div class="flex justify-between text-xs text-gray-400">
+              <span>68%</span><span>~2 min</span>
             </div>
           </div>
-          <!-- Próximo job -->
-          <div class="mt-3 pt-3 border-t border-gray-100">
-            <p class="text-xs text-gray-400 mb-2">Próximo job</p>
-            <div class="flex items-center gap-2.5">
-              <div class="w-7 h-7 bg-gray-100 border border-gray-200 rounded-lg flex items-center justify-center flex-shrink-0">
-                <svg class="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-              </div>
-              <div>
-                <div class="text-xs font-semibold text-gray-700">PostgreSQL · GLPI</div>
-                <div class="text-xs text-primary font-medium">En 14 minutos</div>
-              </div>
+          <!-- Job 2 -->
+          <div class="bg-gray-50 border border-gray-100 rounded-lg p-3">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-semibold text-gray-700">/var/www · Web</span>
+              <span class="inline-flex items-center gap-1 text-xs font-medium text-primary">
+                <span class="w-1.5 h-1.5 rounded-full bg-primary pulse inline-block"></span>Activo
+              </span>
+            </div>
+            <div class="h-1.5 bg-gray-200 rounded-full overflow-hidden mb-1.5">
+              <div class="h-full bg-primary rounded-full bar-fill" style="width:32%"></div>
+            </div>
+            <div class="flex justify-between text-xs text-gray-400">
+              <span>32%</span><span>~8 min</span>
             </div>
           </div>
         </div>
-
-        <!-- Donut: By destination -->
-        <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-          <h3 class="text-sm font-semibold text-gray-700 mb-3">Backups por destino — 30 días</h3>
-          <div class="flex items-center gap-4">
-            <svg viewBox="0 0 80 80" class="w-20 h-20 flex-shrink-0 -rotate-90">
-              <circle cx="40" cy="40" r="28" fill="none" stroke="#e2e8f0" stroke-width="14"/>
-              <circle cx="40" cy="40" r="28" fill="none" stroke="#4361ee" stroke-width="14" stroke-dasharray="88 88" stroke-linecap="round"/>
-              <circle cx="40" cy="40" r="28" fill="none" stroke="#22c55e" stroke-width="14" stroke-dasharray="40 136" stroke-dashoffset="-88" stroke-linecap="round"/>
-              <circle cx="40" cy="40" r="28" fill="none" stroke="#f59e0b" stroke-width="14" stroke-dasharray="22 154" stroke-dashoffset="-128" stroke-linecap="round"/>
-            </svg>
-            <div class="space-y-1.5 text-xs">
-              <div class="flex items-center justify-between gap-4">
-                <span class="flex items-center gap-1.5 text-gray-600"><span class="w-2 h-2 rounded-full bg-primary inline-block"></span>S3</span>
-                <span class="font-semibold text-gray-800">850</span>
-              </div>
-              <div class="flex items-center justify-between gap-4">
-                <span class="flex items-center gap-1.5 text-gray-600"><span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>SFTP</span>
-                <span class="font-semibold text-gray-800">310</span>
-              </div>
-              <div class="flex items-center justify-between gap-4">
-                <span class="flex items-center gap-1.5 text-gray-600"><span class="w-2 h-2 rounded-full bg-amber-500 inline-block"></span>Local</span>
-                <span class="font-semibold text-gray-800">124</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- SLA -->
-        <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-          <h3 class="text-sm font-semibold text-gray-700 mb-3">Cumplimiento SLA — 30 días</h3>
-          <div class="flex items-center gap-4">
-            <div class="relative w-16 h-16 flex-shrink-0">
-              <svg viewBox="0 0 60 60" class="w-16 h-16 -rotate-90">
-                <circle cx="30" cy="30" r="24" fill="none" stroke="#e2e8f0" stroke-width="8"/>
-                <circle cx="30" cy="30" r="24" fill="none" stroke="#22c55e" stroke-width="8"
-                  stroke-dasharray="148 152" stroke-linecap="round"/>
+        <!-- Próximo job -->
+        <div class="mt-3 pt-3 border-t border-gray-100">
+          <p class="text-xs text-gray-400 mb-2">Próximo job</p>
+          <div class="flex items-center gap-2.5">
+            <div class="w-7 h-7 bg-gray-100 border border-gray-200 rounded-lg flex items-center justify-center flex-shrink-0">
+              <svg class="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
               </svg>
-              <div class="absolute inset-0 flex items-center justify-center">
-                <span class="text-sm font-bold text-gray-700" style="transform:rotate(0)">98%</span>
-              </div>
             </div>
             <div>
-              <div class="text-sm text-gray-500">Meta: ≥ 99%</div>
-              <div class="flex items-center gap-1 text-xs text-amber-600 font-medium mt-1">
-                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                Cerca del límite
-              </div>
+              <div class="text-xs font-semibold text-gray-700">PostgreSQL · GLPI</div>
+              <div class="text-xs text-primary font-medium">En 14 minutos</div>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fila 2: Donut por destino + Cumplimiento SLA (igual que SMC Desk) -->
+    <div class="grid grid-cols-2 gap-4">
+      <!-- Donut: By destination -->
+      <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+        <h3 class="text-sm font-semibold text-gray-700 mb-4">Backups por canal — últimos 30 días</h3>
+        <div class="flex items-center gap-6">
+          <svg viewBox="0 0 100 100" class="w-24 h-24 flex-shrink-0 -rotate-90">
+            <circle cx="50" cy="50" r="36" fill="none" stroke="#e2e8f0" stroke-width="16"/>
+            <circle cx="50" cy="50" r="36" fill="none" stroke="#4361ee" stroke-width="16" stroke-dasharray="136 90" stroke-linecap="round"/>
+            <circle cx="50" cy="50" r="36" fill="none" stroke="#22c55e" stroke-width="16" stroke-dasharray="62 164" stroke-dashoffset="-136" stroke-linecap="round"/>
+            <circle cx="50" cy="50" r="36" fill="none" stroke="#f59e0b" stroke-width="16" stroke-dasharray="28 198" stroke-dashoffset="-198" stroke-linecap="round"/>
+          </svg>
+          <div class="space-y-2.5 text-sm flex-1">
+            <div class="flex items-center justify-between">
+              <span class="flex items-center gap-2 text-gray-600">
+                <span class="w-2.5 h-2.5 rounded-full bg-primary inline-block"></span>S3
+              </span>
+              <span class="font-semibold text-gray-800">850</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="flex items-center gap-2 text-gray-600">
+                <span class="w-2.5 h-2.5 rounded-full bg-green-500 inline-block"></span>SFTP
+              </span>
+              <span class="font-semibold text-gray-800">310</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="flex items-center gap-2 text-gray-600">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>Local
+              </span>
+              <span class="font-semibold text-gray-800">124</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLA -->
+      <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+        <h3 class="text-sm font-semibold text-gray-700 mb-4">Cumplimiento SLA — 30 días</h3>
+        <div class="flex items-center gap-6">
+          <div class="relative w-24 h-24 flex-shrink-0">
+            <svg viewBox="0 0 100 100" class="w-24 h-24 -rotate-90">
+              <circle cx="50" cy="50" r="38" fill="none" stroke="#e2e8f0" stroke-width="12"/>
+              <circle cx="50" cy="50" r="38" fill="none" stroke="#22c55e" stroke-width="12"
+                stroke-dasharray="233 6" stroke-linecap="round"/>
+            </svg>
+            <div class="absolute inset-0 flex items-center justify-center">
+              <span class="text-lg font-bold text-gray-800">98%</span>
+            </div>
+          </div>
+          <div class="space-y-1.5">
+            <div class="text-sm text-gray-500">Meta: ≥ 99%</div>
+            <div class="flex items-center gap-1.5 text-sm text-amber-600 font-medium">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+              </svg>
+              Cerca del límite
+            </div>
+            <div class="text-xs text-gray-400 mt-1">2 incumplimientos este mes</div>
           </div>
         </div>
       </div>
