@@ -1,0 +1,151 @@
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  # ─────────────────────────────────────────────────────────
+  # Backend — Python / FastAPI
+  # ─────────────────────────────────────────────────────────
+  server:
+    name: Server (Python)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: backupsmc_test
+          POSTGRES_USER: backupsmc
+          POSTGRES_PASSWORD: secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: server/requirements-dev.txt
+
+      - name: Install dependencies
+        working-directory: server
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint (ruff)
+        working-directory: server
+        run: ruff check .
+
+      - name: Format check (black)
+        working-directory: server
+        run: black --check .
+
+      - name: Type check (mypy)
+        working-directory: server
+        run: mypy app/ || true   # no-fail hasta tener types completos
+
+      - name: Run tests
+        working-directory: server
+        env:
+          DATABASE_URL: postgresql+asyncpg://backupsmc:secret@localhost:5432/backupsmc_test
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: ci-test-secret-key
+        run: pytest --cov=app --cov-report=xml -v
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: server/coverage.xml
+          flags: server
+
+  # ─────────────────────────────────────────────────────────
+  # Agent — Go
+  # ─────────────────────────────────────────────────────────
+  agent:
+    name: Agent (Go)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache-dependency-path: agent/go.sum
+
+      - name: Download dependencies
+        working-directory: agent
+        run: go mod download
+
+      - name: Lint (golangci-lint)
+        uses: golangci/golangci-lint-action@v6
+        with:
+          working-directory: agent
+          version: latest
+
+      - name: Build
+        working-directory: agent
+        run: go build ./...
+
+      - name: Test
+        working-directory: agent
+        run: go test ./... -v -race -coverprofile=coverage.out
+
+  # ─────────────────────────────────────────────────────────
+  # Frontend — React / TypeScript
+  # ─────────────────────────────────────────────────────────
+  frontend:
+    name: Frontend (React)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Type check
+        working-directory: frontend
+        run: npm run type-check
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Test
+        working-directory: frontend
+        run: npm run test

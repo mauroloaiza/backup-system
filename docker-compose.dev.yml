@@ -1,0 +1,108 @@
+version: "3.9"
+
+# =============================================================
+# BackupSMC — Docker Compose (Desarrollo)
+# Hot-reload habilitado, puertos expuestos, sin build de prod
+# =============================================================
+
+services:
+
+  db:
+    image: postgres:16-alpine
+    container_name: backupsmc-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-backupsmc}
+      POSTGRES_USER: ${POSTGRES_USER:-backupsmc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
+    ports:
+      - "5433:5432"
+    volumes:
+      - db_data_dev:/var/lib/postgresql/data
+    networks:
+      - backupsmc-dev
+
+  redis:
+    image: redis:7-alpine
+    container_name: backupsmc-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    networks:
+      - backupsmc-dev
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.dev
+    container_name: backupsmc-server-dev
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      APP_ENV: development
+      DEBUG: "true"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./server:/app          # hot-reload
+      - backups_data_dev:/var/backups/backupsmc
+    depends_on:
+      - db
+      - redis
+    networks:
+      - backupsmc-dev
+
+  worker:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.dev
+    container_name: backupsmc-worker-dev
+    restart: unless-stopped
+    command: celery -A app.tasks.celery_app worker --loglevel=debug --concurrency=2
+    env_file: .env
+    volumes:
+      - ./server:/app
+      - backups_data_dev:/var/backups/backupsmc
+    depends_on:
+      - db
+      - redis
+    networks:
+      - backupsmc-dev
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: backupsmc-frontend-dev
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:8000/api/v1
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app        # hot-reload
+      - /app/node_modules
+    networks:
+      - backupsmc-dev
+
+  # Flower — monitor de Celery (solo dev)
+  flower:
+    image: mher/flower:2.0
+    container_name: backupsmc-flower
+    restart: unless-stopped
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+    networks:
+      - backupsmc-dev
+
+volumes:
+  db_data_dev:
+  backups_data_dev:
+
+networks:
+  backupsmc-dev:
+    driver: bridge

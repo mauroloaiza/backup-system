@@ -1,0 +1,137 @@
+version: "3.9"
+
+# =============================================================
+# BackupSMC — Docker Compose (Producción)
+# =============================================================
+
+services:
+
+  # -----------------------------------------------------------
+  # Base de datos
+  # -----------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: backupsmc-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backupsmc
+
+  # -----------------------------------------------------------
+  # Redis (broker + cache)
+  # -----------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: backupsmc-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backupsmc
+
+  # -----------------------------------------------------------
+  # Servidor API (FastAPI)
+  # -----------------------------------------------------------
+  server:
+    image: backupsmc-server:latest
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: backupsmc-server
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - backups_data:/var/backups/backupsmc
+    networks:
+      - backupsmc
+
+  # -----------------------------------------------------------
+  # Worker Celery
+  # -----------------------------------------------------------
+  worker:
+    image: backupsmc-server:latest
+    container_name: backupsmc-worker
+    restart: unless-stopped
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=4
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - backups_data:/var/backups/backupsmc
+    networks:
+      - backupsmc
+
+  # -----------------------------------------------------------
+  # Celery Beat (scheduler)
+  # -----------------------------------------------------------
+  beat:
+    image: backupsmc-server:latest
+    container_name: backupsmc-beat
+    restart: unless-stopped
+    command: celery -A app.tasks.celery_app beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - backupsmc
+
+  # -----------------------------------------------------------
+  # Frontend (React)
+  # -----------------------------------------------------------
+  frontend:
+    image: backupsmc-frontend:latest
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: backupsmc-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - server
+    networks:
+      - backupsmc
+
+# -----------------------------------------------------------
+# Volúmenes
+# -----------------------------------------------------------
+volumes:
+  db_data:
+  redis_data:
+  backups_data:
+
+# -----------------------------------------------------------
+# Redes
+# -----------------------------------------------------------
+networks:
+  backupsmc:
+    driver: bridge

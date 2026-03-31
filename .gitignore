@@ -1,0 +1,65 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Go
+/agent/bin/
+/agent/*.exe
+*.test
+*.out
+
+# Node / Frontend
+node_modules/
+/frontend/dist/
+/frontend/build/
+/frontend/.next/
+*.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Docker
+*.pid
+
+# Logs
+*.log
+logs/
+
+# Backup files (runtime)
+*.bak
+*.tmp
+
+# Secrets / Keys
+*.pem
+*.key
+*.p12
+*.pfx
