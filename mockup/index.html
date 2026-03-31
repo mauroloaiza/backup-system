@@ -1,759 +1,553 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>BackupSMC — Dashboard</title>
+  <title>BackupSMC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       theme: {
         extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
           colors: {
-            brand: {
-              50:  '#eef2ff',
-              100: '#e0e7ff',
-              500: '#6366f1',
-              600: '#4f46e5',
-              700: '#4338ca',
-              900: '#1e1b4b',
-            }
+            sidebar: '#141b2d',
+            'sidebar-hover': 'rgba(255,255,255,0.06)',
+            primary: '#4361ee',
+            'primary-dark': '#3451d1',
           }
         }
       }
     }
   </script>
   <style>
-    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
-    .nav-item { @apply flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all; }
-    .nav-active { background: rgba(99,102,241,0.15); color: #6366f1; }
-    .nav-inactive { color: #94a3b8; }
-    .nav-inactive:hover { background: rgba(255,255,255,0.05); color: #cbd5e1; }
+    body { font-family: 'Inter', sans-serif; }
 
-    /* Animación barra de progreso */
-    @keyframes fill { from { width: 0% } }
-    .bar-anim { animation: fill 1s ease-out forwards; }
+    /* Sidebar nav items */
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px; border-radius: 8px;
+      font-size: 13.5px; font-weight: 500;
+      cursor: pointer; transition: background .15s;
+      width: 100%; text-align: left;
+    }
+    .nav-active {
+      background: #4361ee; color: #fff;
+    }
+    .nav-active svg { color: #fff; }
+    .nav-inactive { color: #8b9ab4; }
+    .nav-inactive:hover { background: rgba(255,255,255,0.06); color: #c9d4e8; }
 
-    /* Chart bars */
-    .chart-bar { transition: height 0.5s ease; }
+    /* Stat icon square */
+    .stat-icon {
+      width: 44px; height: 44px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
 
-    /* Spinner */
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .spinner { animation: spin 1s linear infinite; }
+    /* Animaciones */
+    @keyframes fillBar { from { width: 0 } }
+    .bar-fill { animation: fillBar 1s ease-out forwards; }
 
-    /* Pulse dot */
-    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
-    .pulse-dot { animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .pulse { animation: pulse 2s ease-in-out infinite; }
+
+    /* Chart lines */
+    .chart-grid { stroke: #f1f5f9; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex">
 
-<!-- ═══════════════════════════════════════════════════════════
-     LOGIN PAGE (oculta por defecto)
-════════════════════════════════════════════════════════════════ -->
-<div id="loginPage" class="hidden fixed inset-0 bg-slate-950 z-50 flex items-center justify-center">
-  <div class="w-full max-w-md px-6">
-    <!-- Logo -->
-    <div class="text-center mb-10">
-      <div class="inline-flex items-center gap-3 mb-4">
-        <div class="w-10 h-10 bg-brand-600 rounded-xl flex items-center justify-center">
-          <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+<body class="bg-gray-50 text-gray-800 min-h-screen flex overflow-hidden">
+
+<!-- ═══════════════════════════════════════════
+     LOGIN
+════════════════════════════════════════════════ -->
+<div id="loginPage" class="hidden fixed inset-0 bg-gray-100 z-50 flex items-center justify-center">
+  <div class="w-full max-w-sm px-4">
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center gap-2.5 mb-3">
+        <div class="w-9 h-9 bg-primary rounded-xl flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10"/>
           </svg>
         </div>
-        <span class="text-2xl font-bold text-white">BackupSMC</span>
+        <span class="text-xl font-bold text-gray-800">BackupSMC</span>
       </div>
-      <p class="text-slate-400 text-sm">Inicia sesión en tu cuenta</p>
+      <p class="text-gray-500 text-sm">Inicia sesión en tu cuenta</p>
     </div>
-
-    <!-- Form -->
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-8">
-      <div class="space-y-5">
+    <div class="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
+      <div class="space-y-4">
         <div>
-          <label class="block text-sm font-medium text-slate-300 mb-1.5">Email</label>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
           <input type="email" placeholder="admin@empresa.com"
-            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"/>
+            class="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"/>
         </div>
         <div>
-          <label class="block text-sm font-medium text-slate-300 mb-1.5">Contraseña</label>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Contraseña</label>
           <input type="password" placeholder="••••••••"
-            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"/>
+            class="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"/>
         </div>
-        <div class="flex items-center justify-between">
-          <label class="flex items-center gap-2 text-sm text-slate-400 cursor-pointer">
-            <input type="checkbox" class="rounded border-slate-600 bg-slate-800 text-brand-500"/>
-            Recordarme
-          </label>
-          <a href="#" class="text-sm text-brand-400 hover:text-brand-300">¿Olvidaste tu contraseña?</a>
-        </div>
-        <button onclick="showApp()" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors">
+        <button onclick="showApp()"
+          class="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-2.5 rounded-lg text-sm transition-colors mt-2">
           Iniciar sesión
         </button>
       </div>
     </div>
-
-    <p class="text-center text-slate-500 text-xs mt-6">
-      BackupSMC © 2026 · SMC Soluciones · <a href="#" class="hover:text-slate-400">Soporte</a>
-    </p>
+    <p class="text-center text-gray-400 text-xs mt-5">BackupSMC © 2026 · SMC Soluciones</p>
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════
-     APP LAYOUT
-════════════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════
+     APP
+════════════════════════════════════════════════ -->
 <div id="appLayout" class="flex w-full min-h-screen">
 
-<!-- ── SIDEBAR ──────────────────────────────────────────────── -->
-<aside class="w-64 min-h-screen bg-slate-900 border-r border-slate-800 flex flex-col fixed top-0 left-0 bottom-0 z-40">
+<!-- ── SIDEBAR ──────────────────────────────── -->
+<aside class="w-52 min-h-screen bg-sidebar flex flex-col fixed top-0 left-0 bottom-0 z-40 select-none">
+
   <!-- Logo -->
-  <div class="px-5 py-5 border-b border-slate-800 flex items-center gap-3">
-    <div class="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center flex-shrink-0">
-      <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+  <div class="px-4 py-5 flex items-center gap-2.5">
+    <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
+      <svg class="w-4.5 h-4.5 text-white w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10"/>
       </svg>
     </div>
     <div>
-      <div class="font-bold text-white text-sm">BackupSMC</div>
-      <div class="text-xs text-slate-500">Enterprise</div>
+      <div class="font-bold text-white text-sm leading-tight">BackupSMC</div>
+      <div class="text-[10px] text-blue-400/70">Soporte IT</div>
     </div>
   </div>
 
   <!-- Nav -->
-  <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-    <p class="text-xs font-semibold text-slate-600 uppercase tracking-wider px-3 mb-2">Principal</p>
+  <nav class="flex-1 px-3 pt-1 pb-4 space-y-0.5 overflow-y-auto">
 
-    <button onclick="showPage('dashboard')" id="nav-dashboard"
-      class="nav-item nav-active w-full text-left">
-      <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <button onclick="showPage('dashboard')" id="nav-dashboard" class="nav-item nav-active w-full">
+      <svg class="w-[17px] h-[17px] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
       </svg>
       Dashboard
+      <svg class="w-3.5 h-3.5 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
     </button>
 
-    <button onclick="showPage('nodes')" id="nav-nodes"
-      class="nav-item nav-inactive w-full text-left">
-      <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/>
-      </svg>
-      Nodos
-      <span class="ml-auto bg-brand-600 text-white text-xs rounded-full px-1.5 py-0.5">4</span>
-    </button>
-
-    <button onclick="showPage('jobs')" id="nav-jobs"
-      class="nav-item nav-inactive w-full text-left">
-      <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <button onclick="showPage('jobs')" id="nav-jobs" class="nav-item nav-inactive w-full">
+      <svg class="w-[17px] h-[17px] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
       </svg>
       Jobs
     </button>
 
-    <button onclick="showPage('history')" id="nav-history"
-      class="nav-item nav-inactive w-full text-left">
-      <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <button onclick="showPage('nodes')" id="nav-nodes" class="nav-item nav-inactive w-full">
+      <svg class="w-[17px] h-[17px] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/>
+      </svg>
+      Nodos
+      <span class="ml-auto text-[10px] font-semibold bg-primary text-white rounded-full px-1.5 py-0.5 leading-none">4</span>
+    </button>
+
+    <button onclick="showPage('history')" id="nav-history" class="nav-item nav-inactive w-full">
+      <svg class="w-[17px] h-[17px] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
       </svg>
       Historial
     </button>
 
-    <p class="text-xs font-semibold text-slate-600 uppercase tracking-wider px-3 mb-2 mt-5">Configuración</p>
-
-    <button onclick="showPage('destinations')" id="nav-destinations"
-      class="nav-item nav-inactive w-full text-left">
-      <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <button onclick="showPage('destinations')" id="nav-destinations" class="nav-item nav-inactive w-full">
+      <svg class="w-[17px] h-[17px] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/>
       </svg>
       Destinos
     </button>
 
-    <button onclick="showPage('settings')" id="nav-settings"
-      class="nav-item nav-inactive w-full text-left">
-      <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <!-- Separator -->
+    <div class="pt-4 pb-1">
+      <p class="text-[10px] font-semibold uppercase tracking-widest text-slate-600 px-3">Configuración</p>
+    </div>
+
+    <button onclick="showPage('settings')" id="nav-settings" class="nav-item nav-inactive w-full">
+      <svg class="w-[17px] h-[17px] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
         <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
       </svg>
       Configuración
     </button>
-  </nav>
 
-  <!-- User / bottom -->
-  <div class="px-3 py-4 border-t border-slate-800">
-    <!-- Plan badge -->
-    <div class="bg-brand-600/10 border border-brand-600/20 rounded-lg px-3 py-2 mb-3">
-      <div class="flex items-center justify-between">
-        <span class="text-xs text-brand-400 font-medium">Plan Pro</span>
-        <span class="text-xs text-slate-500">3/5 nodos</span>
-      </div>
-      <div class="mt-1.5 h-1 bg-slate-800 rounded-full overflow-hidden">
-        <div class="h-full bg-brand-500 rounded-full bar-anim" style="width:60%"></div>
-      </div>
-    </div>
-    <!-- Avatar -->
-    <div class="flex items-center gap-3 px-1">
-      <div class="w-8 h-8 rounded-full bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">MA</div>
-      <div class="flex-1 min-w-0">
-        <div class="text-sm font-medium text-slate-200 truncate">Mauro Loaiza</div>
-        <div class="text-xs text-slate-500 truncate">admin@smcsoluciones.com</div>
-      </div>
-      <button onclick="showLogin()" title="Cerrar sesión" class="text-slate-600 hover:text-slate-400 transition-colors">
-        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-        </svg>
-      </button>
-    </div>
-  </div>
+    <button class="nav-item nav-inactive w-full">
+      <svg class="w-[17px] h-[17px] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+      </svg>
+      API Keys
+    </button>
+
+    <button class="nav-item nav-inactive w-full">
+      <svg class="w-[17px] h-[17px] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+      </svg>
+      Auditoría
+    </button>
+
+    <button class="nav-item nav-inactive w-full">
+      <svg class="w-[17px] h-[17px] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h7"/>
+      </svg>
+      Logs
+    </button>
+  </nav>
 </aside>
 
-<!-- ── MAIN CONTENT ──────────────────────────────────────────── -->
-<main class="ml-64 flex-1 min-h-screen">
+<!-- ── MAIN ──────────────────────────────────── -->
+<main class="ml-52 flex-1 min-h-screen flex flex-col bg-gray-50">
 
   <!-- Top bar -->
-  <header class="sticky top-0 z-30 bg-slate-950/80 backdrop-blur border-b border-slate-800 px-6 py-3 flex items-center justify-between">
-    <div>
-      <h1 id="pageTitle" class="text-lg font-semibold text-white">Dashboard</h1>
-      <p id="pageSubtitle" class="text-xs text-slate-500">Resumen general del sistema</p>
-    </div>
-    <div class="flex items-center gap-3">
-      <!-- Search -->
+  <header class="sticky top-0 z-30 bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between gap-4">
+    <!-- Left: Search + filters -->
+    <div class="flex items-center gap-2">
       <div class="relative">
-        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
         </svg>
-        <input placeholder="Buscar..." class="bg-slate-900 border border-slate-800 rounded-lg pl-9 pr-4 py-2 text-sm text-slate-300 placeholder-slate-600 w-52 focus:outline-none focus:border-brand-500"/>
+        <input placeholder="Buscar..." class="border border-gray-200 rounded-md pl-8 pr-20 py-1.5 text-sm text-gray-600 placeholder-gray-400 w-48 focus:outline-none focus:border-primary bg-white"/>
+        <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded font-medium">ctrl K</span>
       </div>
-      <!-- Notif bell -->
-      <button class="relative p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors">
-        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <button class="flex items-center gap-1.5 border border-gray-200 rounded-md px-3 py-1.5 text-sm text-gray-600 bg-white hover:bg-gray-50 transition-colors">
+        <svg class="w-3.5 h-3.5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+        Todas las empresas
+        <svg class="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+      </button>
+      <button class="flex items-center gap-1.5 border border-gray-200 rounded-md px-3 py-1.5 text-sm text-gray-600 bg-white hover:bg-gray-50 transition-colors">
+        <svg class="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+        Ver como...
+        <svg class="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+      </button>
+    </div>
+    <!-- Right: bell + user -->
+    <div class="flex items-center gap-3">
+      <button class="relative p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+        <svg class="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
         </svg>
-        <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full pulse-dot"></span>
+        <span class="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white pulse"></span>
       </button>
-      <!-- New job button -->
-      <button onclick="showPage('jobs')" class="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
-        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-        </svg>
-        Nuevo Job
-      </button>
+      <div class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1 transition-colors" onclick="showLogin()">
+        <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-white">ML</div>
+        <div class="text-right">
+          <div class="text-sm font-semibold text-gray-800 leading-tight">Mauricio Loaiza</div>
+          <div class="text-xs text-gray-400 leading-tight">Administrador</div>
+        </div>
+        <svg class="w-3.5 h-3.5 text-gray-400 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+      </div>
     </div>
   </header>
 
-  <!-- ── PAGE: DASHBOARD ──────────────────────────────────────── -->
-  <div id="page-dashboard" class="p-6 space-y-6">
+  <!-- ── PAGE: DASHBOARD ──────────────────── -->
+  <div id="page-dashboard" class="flex-1 p-6 space-y-5 overflow-y-auto">
 
-    <!-- Stats cards -->
+    <!-- Page title -->
+    <div class="flex items-start justify-between">
+      <div>
+        <h1 class="text-xl font-bold text-gray-800">Dashboard</h1>
+        <p class="text-sm text-gray-400 mt-0.5">Resumen general del sistema</p>
+      </div>
+      <button class="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-1.5 bg-white hover:bg-gray-50 transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+        Personalizar
+      </button>
+    </div>
+
+    <!-- Stat cards row 1 -->
     <div class="grid grid-cols-4 gap-4">
-      <!-- Card 1 -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-        <div class="flex items-start justify-between mb-3">
-          <div class="w-10 h-10 bg-green-500/10 rounded-lg flex items-center justify-center">
-            <svg class="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-          </div>
-          <span class="text-xs text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">+2.1%</span>
+      <div class="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3.5 shadow-sm">
+        <div class="stat-icon bg-blue-100">
+          <svg class="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
         </div>
-        <div class="text-2xl font-bold text-white">98.4%</div>
-        <div class="text-sm text-slate-500 mt-0.5">Tasa de éxito</div>
+        <div>
+          <div class="text-2xl font-bold text-gray-800 leading-tight">1,284</div>
+          <div class="text-xs text-gray-400 mt-0.5">Total Backups</div>
+        </div>
       </div>
-      <!-- Card 2 -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-        <div class="flex items-start justify-between mb-3">
-          <div class="w-10 h-10 bg-brand-500/10 rounded-lg flex items-center justify-center">
-            <svg class="w-5 h-5 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/>
-            </svg>
-          </div>
-          <span class="text-xs text-brand-400 bg-brand-400/10 px-2 py-0.5 rounded-full">+12 GB</span>
+      <div class="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3.5 shadow-sm">
+        <div class="stat-icon bg-amber-100">
+          <svg class="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         </div>
-        <div class="text-2xl font-bold text-white">247 GB</div>
-        <div class="text-sm text-slate-500 mt-0.5">Almacenamiento usado</div>
+        <div>
+          <div class="text-2xl font-bold text-gray-800 leading-tight">2</div>
+          <div class="text-xs text-gray-400 mt-0.5">En ejecución</div>
+          <div class="text-[10px] text-amber-500">Requieren atención</div>
+        </div>
       </div>
-      <!-- Card 3 -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-        <div class="flex items-start justify-between mb-3">
-          <div class="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center">
-            <svg class="w-5 h-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/>
-            </svg>
-          </div>
-          <span class="text-xs text-purple-400 bg-purple-400/10 px-2 py-0.5 rounded-full">4 activos</span>
+      <div class="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3.5 shadow-sm">
+        <div class="stat-icon bg-green-100">
+          <svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         </div>
-        <div class="text-2xl font-bold text-white">4 / 5</div>
-        <div class="text-sm text-slate-500 mt-0.5">Nodos conectados</div>
+        <div>
+          <div class="text-2xl font-bold text-gray-800 leading-tight">1,261</div>
+          <div class="text-xs text-gray-400 mt-0.5">Exitosos</div>
+        </div>
       </div>
-      <!-- Card 4 -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-        <div class="flex items-start justify-between mb-3">
-          <div class="w-10 h-10 bg-orange-500/10 rounded-lg flex items-center justify-center">
-            <svg class="w-5 h-5 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-          </div>
-          <span class="text-xs text-orange-400 bg-orange-400/10 px-2 py-0.5 rounded-full">hoy</span>
+      <div class="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3.5 shadow-sm">
+        <div class="stat-icon bg-violet-100">
+          <svg class="w-5 h-5 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
         </div>
-        <div class="text-2xl font-bold text-white">1,284</div>
-        <div class="text-sm text-slate-500 mt-0.5">Backups totales</div>
+        <div>
+          <div class="text-2xl font-bold text-gray-800 leading-tight">2m 14s</div>
+          <div class="text-xs text-gray-400 mt-0.5">Tiempo prom.</div>
+          <div class="text-[10px] text-gray-400">1,261 exitosos</div>
+        </div>
       </div>
     </div>
 
-    <!-- Chart + Running jobs -->
+    <!-- Stat cards row 2 -->
+    <div class="grid grid-cols-4 gap-4">
+      <div class="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3.5 shadow-sm">
+        <div class="stat-icon bg-red-100">
+          <svg class="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        </div>
+        <div>
+          <div class="text-2xl font-bold text-gray-800 leading-tight">23</div>
+          <div class="text-xs text-gray-400 mt-0.5">Fallidos activos</div>
+          <div class="text-[10px] text-red-500">Alta prioridad</div>
+        </div>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3.5 shadow-sm">
+        <div class="stat-icon bg-orange-100">
+          <svg class="w-5 h-5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/></svg>
+        </div>
+        <div>
+          <div class="text-2xl font-bold text-gray-800 leading-tight">4</div>
+          <div class="text-xs text-gray-400 mt-0.5">Nodos activos</div>
+        </div>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3.5 shadow-sm">
+        <div class="stat-icon bg-red-100">
+          <svg class="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+        </div>
+        <div>
+          <div class="text-2xl font-bold text-gray-800 leading-tight">98.4%</div>
+          <div class="text-xs text-gray-400 mt-0.5">SLA 30 días</div>
+          <div class="text-[10px] text-gray-400">2 incumplimientos</div>
+        </div>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3.5 shadow-sm">
+        <div class="stat-icon bg-cyan-100">
+          <svg class="w-5 h-5 text-cyan-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
+        </div>
+        <div>
+          <div class="text-2xl font-bold text-gray-800 leading-tight">247 GB</div>
+          <div class="text-xs text-gray-400 mt-0.5">Almacenado hoy</div>
+          <div class="text-[10px] text-gray-400">últimas 24h</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart + Side -->
     <div class="grid grid-cols-3 gap-4">
-      <!-- Chart (col-span-2) -->
-      <div class="col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5">
-        <div class="flex items-center justify-between mb-5">
-          <div>
-            <h3 class="text-sm font-semibold text-white">Backups últimos 7 días</h3>
-            <p class="text-xs text-slate-500 mt-0.5">Exitosos vs fallidos</p>
-          </div>
-          <div class="flex items-center gap-4 text-xs">
-            <span class="flex items-center gap-1.5 text-slate-400"><span class="w-2.5 h-2.5 rounded-sm bg-brand-500 inline-block"></span>Exitosos</span>
-            <span class="flex items-center gap-1.5 text-slate-400"><span class="w-2.5 h-2.5 rounded-sm bg-red-500 inline-block"></span>Fallidos</span>
-          </div>
-        </div>
-        <!-- Bars -->
-        <div class="flex items-end gap-3 h-36">
-          <!-- Day bars -->
-          <div class="flex-1 flex flex-col items-center gap-1">
-            <div class="w-full flex gap-0.5 items-end h-28">
-              <div class="flex-1 bg-brand-500 rounded-t bar-anim" style="height:75%"></div>
-              <div class="flex-1 bg-red-500 rounded-t bar-anim" style="height:5%"></div>
-            </div>
-            <span class="text-xs text-slate-600">L</span>
-          </div>
-          <div class="flex-1 flex flex-col items-center gap-1">
-            <div class="w-full flex gap-0.5 items-end h-28">
-              <div class="flex-1 bg-brand-500 rounded-t bar-anim" style="height:90%"></div>
-              <div class="flex-1 bg-red-500 rounded-t bar-anim" style="height:3%"></div>
-            </div>
-            <span class="text-xs text-slate-600">M</span>
-          </div>
-          <div class="flex-1 flex flex-col items-center gap-1">
-            <div class="w-full flex gap-0.5 items-end h-28">
-              <div class="flex-1 bg-brand-500 rounded-t bar-anim" style="height:65%"></div>
-              <div class="flex-1 bg-red-500 rounded-t bar-anim" style="height:10%"></div>
-            </div>
-            <span class="text-xs text-slate-600">X</span>
-          </div>
-          <div class="flex-1 flex flex-col items-center gap-1">
-            <div class="w-full flex gap-0.5 items-end h-28">
-              <div class="flex-1 bg-brand-500 rounded-t bar-anim" style="height:100%"></div>
-              <div class="flex-1 bg-red-500 rounded-t bar-anim" style="height:2%"></div>
-            </div>
-            <span class="text-xs text-slate-600">J</span>
-          </div>
-          <div class="flex-1 flex flex-col items-center gap-1">
-            <div class="w-full flex gap-0.5 items-end h-28">
-              <div class="flex-1 bg-brand-500 rounded-t bar-anim" style="height:80%"></div>
-              <div class="flex-1 bg-red-500 rounded-t bar-anim" style="height:0%"></div>
-            </div>
-            <span class="text-xs text-slate-600">V</span>
-          </div>
-          <div class="flex-1 flex flex-col items-center gap-1">
-            <div class="w-full flex gap-0.5 items-end h-28">
-              <div class="flex-1 bg-brand-500 rounded-t bar-anim" style="height:40%"></div>
-              <div class="flex-1 bg-red-500 rounded-t bar-anim" style="height:0%"></div>
-            </div>
-            <span class="text-xs text-slate-600">S</span>
-          </div>
-          <div class="flex-1 flex flex-col items-center gap-1">
-            <div class="w-full flex gap-0.5 items-end h-28">
-              <div class="flex-1 bg-brand-500 rounded-t bar-anim" style="height:55%"></div>
-              <div class="flex-1 bg-red-500 rounded-t bar-anim" style="height:0%"></div>
-            </div>
-            <span class="text-xs text-slate-600">D</span>
-          </div>
+      <!-- Line chart -->
+      <div class="col-span-2 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+        <h3 class="text-sm font-semibold text-gray-700 mb-0.5">Tendencia de backups — últimos 14 días</h3>
+        <div class="mt-4">
+          <!-- SVG Line Chart -->
+          <svg viewBox="0 0 600 120" class="w-full" style="height:140px">
+            <!-- Grid lines -->
+            <line x1="0" y1="20" x2="600" y2="20" stroke="#f1f5f9" stroke-width="1"/>
+            <line x1="0" y1="50" x2="600" y2="50" stroke="#f1f5f9" stroke-width="1"/>
+            <line x1="0" y1="80" x2="600" y2="80" stroke="#f1f5f9" stroke-width="1"/>
+            <line x1="0" y1="110" x2="600" y2="110" stroke="#f1f5f9" stroke-width="1"/>
+            <!-- Y labels -->
+            <text x="0" y="18" font-size="9" fill="#94a3b8">8</text>
+            <text x="0" y="48" font-size="9" fill="#94a3b8">6</text>
+            <text x="0" y="78" font-size="9" fill="#94a3b8">4</text>
+            <text x="0" y="108" font-size="9" fill="#94a3b8">2</text>
+            <!-- Area fill -->
+            <defs>
+              <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#4361ee" stop-opacity="0.15"/>
+                <stop offset="100%" stop-color="#4361ee" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <path d="M14,110 L55,110 L98,95 L141,95 L184,80 L227,80 L270,65 L313,50 L356,35 L399,22 L442,35 L485,55 L528,110 L571,110 L571,115 L14,115 Z" fill="url(#areaGrad)"/>
+            <!-- Line -->
+            <polyline points="14,110 55,110 98,95 141,95 184,80 227,80 270,65 313,50 356,35 399,22 442,35 485,55 528,110 571,110"
+              fill="none" stroke="#4361ee" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- Dots -->
+            <circle cx="399" cy="22" r="4" fill="#4361ee"/>
+            <circle cx="442" cy="35" r="3" fill="#4361ee" opacity=".5"/>
+            <!-- X labels -->
+            <text x="10" y="126" font-size="8.5" fill="#94a3b8">18 mar</text>
+            <text x="53" y="126" font-size="8.5" fill="#94a3b8">19 mar</text>
+            <text x="96" y="126" font-size="8.5" fill="#94a3b8">20 mar</text>
+            <text x="139" y="126" font-size="8.5" fill="#94a3b8">21 mar</text>
+            <text x="182" y="126" font-size="8.5" fill="#94a3b8">22 mar</text>
+            <text x="225" y="126" font-size="8.5" fill="#94a3b8">23 mar</text>
+            <text x="268" y="126" font-size="8.5" fill="#94a3b8">24 mar</text>
+            <text x="311" y="126" font-size="8.5" fill="#94a3b8">25 mar</text>
+            <text x="354" y="126" font-size="8.5" fill="#94a3b8">26 mar</text>
+            <text x="397" y="126" font-size="8.5" fill="#94a3b8">27 mar</text>
+            <text x="440" y="126" font-size="8.5" fill="#94a3b8">28 mar</text>
+            <text x="483" y="126" font-size="8.5" fill="#94a3b8">29 mar</text>
+            <text x="526" y="126" font-size="8.5" fill="#94a3b8">30 mar</text>
+            <text x="562" y="126" font-size="8.5" fill="#94a3b8">31 mar</text>
+          </svg>
         </div>
       </div>
 
-      <!-- En ejecución / próximos -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col">
-        <h3 class="text-sm font-semibold text-white mb-4">En ejecución ahora</h3>
-        <div class="space-y-3 flex-1">
-          <!-- running job -->
-          <div class="bg-slate-800/60 rounded-lg p-3">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-medium text-white">MySQL · Producción</span>
-              <span class="flex items-center gap-1 text-xs text-brand-400">
-                <span class="w-1.5 h-1.5 rounded-full bg-brand-400 pulse-dot"></span>
-                Activo
-              </span>
-            </div>
-            <div class="h-1.5 bg-slate-700 rounded-full overflow-hidden mb-1.5">
-              <div class="h-full bg-brand-500 rounded-full bar-anim" style="width:68%"></div>
-            </div>
-            <div class="flex justify-between text-xs text-slate-500">
-              <span>68%</span><span>~2 min</span>
-            </div>
-          </div>
-          <div class="bg-slate-800/60 rounded-lg p-3">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-medium text-white">/var/www · Web</span>
-              <span class="flex items-center gap-1 text-xs text-brand-400">
-                <span class="w-1.5 h-1.5 rounded-full bg-brand-400 pulse-dot"></span>
-                Activo
-              </span>
-            </div>
-            <div class="h-1.5 bg-slate-700 rounded-full overflow-hidden mb-1.5">
-              <div class="h-full bg-brand-500 rounded-full bar-anim" style="width:32%"></div>
-            </div>
-            <div class="flex justify-between text-xs text-slate-500">
-              <span>32%</span><span>~8 min</span>
+      <!-- Right column -->
+      <div class="space-y-4">
+        <!-- Donut: By destination -->
+        <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <h3 class="text-sm font-semibold text-gray-700 mb-3">Backups por destino — 30 días</h3>
+          <div class="flex items-center gap-4">
+            <svg viewBox="0 0 80 80" class="w-20 h-20 flex-shrink-0 -rotate-90">
+              <circle cx="40" cy="40" r="28" fill="none" stroke="#e2e8f0" stroke-width="14"/>
+              <circle cx="40" cy="40" r="28" fill="none" stroke="#4361ee" stroke-width="14" stroke-dasharray="88 88" stroke-linecap="round"/>
+              <circle cx="40" cy="40" r="28" fill="none" stroke="#22c55e" stroke-width="14" stroke-dasharray="40 136" stroke-dashoffset="-88" stroke-linecap="round"/>
+              <circle cx="40" cy="40" r="28" fill="none" stroke="#f59e0b" stroke-width="14" stroke-dasharray="22 154" stroke-dashoffset="-128" stroke-linecap="round"/>
+            </svg>
+            <div class="space-y-1.5 text-xs">
+              <div class="flex items-center justify-between gap-4">
+                <span class="flex items-center gap-1.5 text-gray-600"><span class="w-2 h-2 rounded-full bg-primary inline-block"></span>S3</span>
+                <span class="font-semibold text-gray-800">850</span>
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <span class="flex items-center gap-1.5 text-gray-600"><span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>SFTP</span>
+                <span class="font-semibold text-gray-800">310</span>
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <span class="flex items-center gap-1.5 text-gray-600"><span class="w-2 h-2 rounded-full bg-amber-500 inline-block"></span>Local</span>
+                <span class="font-semibold text-gray-800">124</span>
+              </div>
             </div>
           </div>
         </div>
-        <div class="mt-4 pt-3 border-t border-slate-800">
-          <p class="text-xs text-slate-500 mb-2">Próximo job</p>
-          <div class="flex items-center gap-2">
-            <div class="w-7 h-7 bg-slate-800 rounded-lg flex items-center justify-center flex-shrink-0">
-              <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+
+        <!-- SLA -->
+        <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <h3 class="text-sm font-semibold text-gray-700 mb-3">Cumplimiento SLA — 30 días</h3>
+          <div class="flex items-center gap-4">
+            <div class="relative w-16 h-16 flex-shrink-0">
+              <svg viewBox="0 0 60 60" class="w-16 h-16 -rotate-90">
+                <circle cx="30" cy="30" r="24" fill="none" stroke="#e2e8f0" stroke-width="8"/>
+                <circle cx="30" cy="30" r="24" fill="none" stroke="#22c55e" stroke-width="8"
+                  stroke-dasharray="148 152" stroke-linecap="round"/>
               </svg>
+              <div class="absolute inset-0 flex items-center justify-center">
+                <span class="text-sm font-bold text-gray-700" style="transform:rotate(0)">98%</span>
+              </div>
             </div>
             <div>
-              <div class="text-xs font-medium text-slate-300">PostgreSQL · GLPI</div>
-              <div class="text-xs text-slate-600">En 14 minutos</div>
+              <div class="text-sm text-gray-500">Meta: ≥ 99%</div>
+              <div class="flex items-center gap-1 text-xs text-amber-600 font-medium mt-1">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                Cerca del límite
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Recent jobs table -->
-    <div class="bg-slate-900 border border-slate-800 rounded-xl">
-      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-800">
-        <h3 class="text-sm font-semibold text-white">Últimas ejecuciones</h3>
-        <button onclick="showPage('history')" class="text-xs text-brand-400 hover:text-brand-300 font-medium">Ver todo →</button>
+    <!-- Recent runs table -->
+    <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+        <h3 class="text-sm font-semibold text-gray-700">Últimas ejecuciones</h3>
+        <button onclick="showPage('history')" class="text-xs text-primary font-medium hover:underline">Ver todo →</button>
       </div>
-      <div class="overflow-x-auto">
-        <table class="w-full">
-          <thead>
-            <tr class="text-xs text-slate-500 border-b border-slate-800">
-              <th class="text-left px-5 py-3 font-medium">Job</th>
-              <th class="text-left px-5 py-3 font-medium">Nodo</th>
-              <th class="text-left px-5 py-3 font-medium">Destino</th>
-              <th class="text-left px-5 py-3 font-medium">Tamaño</th>
-              <th class="text-left px-5 py-3 font-medium">Duración</th>
-              <th class="text-left px-5 py-3 font-medium">Hora</th>
-              <th class="text-left px-5 py-3 font-medium">Estado</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-800/50">
-            <tr class="hover:bg-slate-800/30 transition-colors">
-              <td class="px-5 py-3.5">
-                <div class="text-sm font-medium text-white">MySQL · Producción</div>
-                <div class="text-xs text-slate-500">mysql-prod</div>
-              </td>
-              <td class="px-5 py-3.5 text-sm text-slate-400">web-server-01</td>
-              <td class="px-5 py-3.5">
-                <span class="flex items-center gap-1.5 text-xs text-slate-400">
-                  <svg class="w-3.5 h-3.5 text-orange-400" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
-                  S3 · backupsmc
-                </span>
-              </td>
-              <td class="px-5 py-3.5 text-sm text-slate-400">1.2 GB</td>
-              <td class="px-5 py-3.5 text-sm text-slate-400">2m 14s</td>
-              <td class="px-5 py-3.5 text-xs text-slate-500">Hoy 03:00</td>
-              <td class="px-5 py-3.5">
-                <span class="flex items-center gap-1.5 text-xs font-medium text-green-400 bg-green-400/10 px-2 py-1 rounded-full w-fit">
-                  <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>Exitoso
-                </span>
-              </td>
-            </tr>
-            <tr class="hover:bg-slate-800/30 transition-colors">
-              <td class="px-5 py-3.5">
-                <div class="text-sm font-medium text-white">PostgreSQL · GLPI</div>
-                <div class="text-xs text-slate-500">pg-glpi</div>
-              </td>
-              <td class="px-5 py-3.5 text-sm text-slate-400">glpi-server</td>
-              <td class="px-5 py-3.5">
-                <span class="flex items-center gap-1.5 text-xs text-slate-400">
-                  <svg class="w-3.5 h-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
-                  SFTP · backup-nas
-                </span>
-              </td>
-              <td class="px-5 py-3.5 text-sm text-slate-400">843 MB</td>
-              <td class="px-5 py-3.5 text-sm text-slate-400">1m 38s</td>
-              <td class="px-5 py-3.5 text-xs text-slate-500">Hoy 02:00</td>
-              <td class="px-5 py-3.5">
-                <span class="flex items-center gap-1.5 text-xs font-medium text-green-400 bg-green-400/10 px-2 py-1 rounded-full w-fit">
-                  <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>Exitoso
-                </span>
-              </td>
-            </tr>
-            <tr class="hover:bg-slate-800/30 transition-colors">
-              <td class="px-5 py-3.5">
-                <div class="text-sm font-medium text-white">/var/uploads · SMC Desk</div>
-                <div class="text-xs text-slate-500">files-uploads</div>
-              </td>
-              <td class="px-5 py-3.5 text-sm text-slate-400">app-server-02</td>
-              <td class="px-5 py-3.5">
-                <span class="flex items-center gap-1.5 text-xs text-slate-400">
-                  <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"/></svg>
-                  Local · /backups
-                </span>
-              </td>
-              <td class="px-5 py-3.5 text-sm text-slate-400">5.7 GB</td>
-              <td class="px-5 py-3.5 text-sm text-slate-400">8m 52s</td>
-              <td class="px-5 py-3.5 text-xs text-slate-500">Ayer 23:00</td>
-              <td class="px-5 py-3.5">
-                <span class="flex items-center gap-1.5 text-xs font-medium text-red-400 bg-red-400/10 px-2 py-1 rounded-full w-fit">
-                  <span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>Fallido
-                </span>
-              </td>
-            </tr>
-            <tr class="hover:bg-slate-800/30 transition-colors">
-              <td class="px-5 py-3.5">
-                <div class="text-sm font-medium text-white">Docker Vol · Redis</div>
-                <div class="text-xs text-slate-500">docker-redis</div>
-              </td>
-              <td class="px-5 py-3.5 text-sm text-slate-400">docker-host</td>
-              <td class="px-5 py-3.5">
-                <span class="flex items-center gap-1.5 text-xs text-slate-400">
-                  <svg class="w-3.5 h-3.5 text-orange-400" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
-                  S3 · backupsmc
-                </span>
-              </td>
-              <td class="px-5 py-3.5 text-sm text-slate-400">128 MB</td>
-              <td class="px-5 py-3.5 text-sm text-slate-400">0m 23s</td>
-              <td class="px-5 py-3.5 text-xs text-slate-500">Ayer 22:00</td>
-              <td class="px-5 py-3.5">
-                <span class="flex items-center gap-1.5 text-xs font-medium text-green-400 bg-green-400/10 px-2 py-1 rounded-full w-fit">
-                  <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>Exitoso
-                </span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── PAGE: NODES ──────────────────────────────────────────── -->
-  <div id="page-nodes" class="p-6 hidden space-y-5">
-    <div class="flex justify-end">
-      <button class="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
-        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-        Registrar nodo
-      </button>
-    </div>
-    <div class="grid grid-cols-2 gap-4">
-      <!-- Node cards -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-        <div class="flex items-start justify-between mb-4">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-green-500/10 rounded-lg flex items-center justify-center">
-              <svg class="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/></svg>
-            </div>
-            <div>
-              <div class="text-sm font-semibold text-white">web-server-01</div>
-              <div class="text-xs text-slate-500">192.168.1.10</div>
-            </div>
-          </div>
-          <span class="flex items-center gap-1 text-xs text-green-400 bg-green-400/10 px-2 py-1 rounded-full">
-            <span class="w-1.5 h-1.5 rounded-full bg-green-400 pulse-dot"></span>Online
-          </span>
-        </div>
-        <div class="grid grid-cols-3 gap-3 text-center">
-          <div class="bg-slate-800 rounded-lg p-2.5">
-            <div class="text-sm font-bold text-white">12</div>
-            <div class="text-xs text-slate-500">Jobs</div>
-          </div>
-          <div class="bg-slate-800 rounded-lg p-2.5">
-            <div class="text-sm font-bold text-white">98%</div>
-            <div class="text-xs text-slate-500">Éxito</div>
-          </div>
-          <div class="bg-slate-800 rounded-lg p-2.5">
-            <div class="text-sm font-bold text-white">v0.1</div>
-            <div class="text-xs text-slate-500">Agente</div>
-          </div>
-        </div>
-        <div class="mt-3 text-xs text-slate-600">Último contacto: hace 2 min</div>
-      </div>
-
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-        <div class="flex items-start justify-between mb-4">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-green-500/10 rounded-lg flex items-center justify-center">
-              <svg class="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/></svg>
-            </div>
-            <div>
-              <div class="text-sm font-semibold text-white">glpi-server</div>
-              <div class="text-xs text-slate-500">192.168.1.20</div>
-            </div>
-          </div>
-          <span class="flex items-center gap-1 text-xs text-green-400 bg-green-400/10 px-2 py-1 rounded-full">
-            <span class="w-1.5 h-1.5 rounded-full bg-green-400 pulse-dot"></span>Online
-          </span>
-        </div>
-        <div class="grid grid-cols-3 gap-3 text-center">
-          <div class="bg-slate-800 rounded-lg p-2.5">
-            <div class="text-sm font-bold text-white">8</div>
-            <div class="text-xs text-slate-500">Jobs</div>
-          </div>
-          <div class="bg-slate-800 rounded-lg p-2.5">
-            <div class="text-sm font-bold text-white">100%</div>
-            <div class="text-xs text-slate-500">Éxito</div>
-          </div>
-          <div class="bg-slate-800 rounded-lg p-2.5">
-            <div class="text-sm font-bold text-white">v0.1</div>
-            <div class="text-xs text-slate-500">Agente</div>
-          </div>
-        </div>
-        <div class="mt-3 text-xs text-slate-600">Último contacto: hace 1 min</div>
-      </div>
-
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-        <div class="flex items-start justify-between mb-4">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-green-500/10 rounded-lg flex items-center justify-center">
-              <svg class="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/></svg>
-            </div>
-            <div>
-              <div class="text-sm font-semibold text-white">docker-host</div>
-              <div class="text-xs text-slate-500">192.168.1.30</div>
-            </div>
-          </div>
-          <span class="flex items-center gap-1 text-xs text-green-400 bg-green-400/10 px-2 py-1 rounded-full">
-            <span class="w-1.5 h-1.5 rounded-full bg-green-400 pulse-dot"></span>Online
-          </span>
-        </div>
-        <div class="grid grid-cols-3 gap-3 text-center">
-          <div class="bg-slate-800 rounded-lg p-2.5">
-            <div class="text-sm font-bold text-white">5</div>
-            <div class="text-xs text-slate-500">Jobs</div>
-          </div>
-          <div class="bg-slate-800 rounded-lg p-2.5">
-            <div class="text-sm font-bold text-white">95%</div>
-            <div class="text-xs text-slate-500">Éxito</div>
-          </div>
-          <div class="bg-slate-800 rounded-lg p-2.5">
-            <div class="text-sm font-bold text-white">v0.1</div>
-            <div class="text-xs text-slate-500">Agente</div>
-          </div>
-        </div>
-        <div class="mt-3 text-xs text-slate-600">Último contacto: hace 5 min</div>
-      </div>
-
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 border-dashed border-slate-700">
-        <div class="flex items-start justify-between mb-4">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-red-500/10 rounded-lg flex items-center justify-center">
-              <svg class="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/></svg>
-            </div>
-            <div>
-              <div class="text-sm font-semibold text-white">app-server-02</div>
-              <div class="text-xs text-slate-500">192.168.1.40</div>
-            </div>
-          </div>
-          <span class="flex items-center gap-1 text-xs text-red-400 bg-red-400/10 px-2 py-1 rounded-full">
-            <span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>Offline
-          </span>
-        </div>
-        <div class="grid grid-cols-3 gap-3 text-center">
-          <div class="bg-slate-800 rounded-lg p-2.5">
-            <div class="text-sm font-bold text-white">3</div>
-            <div class="text-xs text-slate-500">Jobs</div>
-          </div>
-          <div class="bg-slate-800 rounded-lg p-2.5">
-            <div class="text-sm font-bold text-white">67%</div>
-            <div class="text-xs text-slate-500">Éxito</div>
-          </div>
-          <div class="bg-slate-800 rounded-lg p-2.5">
-            <div class="text-sm font-bold text-white">v0.1</div>
-            <div class="text-xs text-slate-500">Agente</div>
-          </div>
-        </div>
-        <div class="mt-3 text-xs text-red-600">Sin contacto desde hace 2 horas</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── PAGE: JOBS ──────────────────────────────────────────── -->
-  <div id="page-jobs" class="p-6 hidden space-y-5">
-    <div class="flex justify-end gap-3">
-      <button class="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
-        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-        Crear Job
-      </button>
-    </div>
-    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
       <table class="w-full">
         <thead>
-          <tr class="text-xs text-slate-500 border-b border-slate-800 bg-slate-900/50">
-            <th class="text-left px-5 py-3 font-medium">Nombre</th>
-            <th class="text-left px-5 py-3 font-medium">Fuente</th>
-            <th class="text-left px-5 py-3 font-medium">Nodo</th>
-            <th class="text-left px-5 py-3 font-medium">Destino</th>
-            <th class="text-left px-5 py-3 font-medium">Cron</th>
-            <th class="text-left px-5 py-3 font-medium">Estado</th>
-            <th class="text-left px-5 py-3 font-medium">Acciones</th>
+          <tr class="text-xs text-gray-400 font-medium border-b border-gray-100 bg-gray-50/50">
+            <th class="text-left px-5 py-2.5">Job</th>
+            <th class="text-left px-4 py-2.5">Nodo</th>
+            <th class="text-left px-4 py-2.5">Destino</th>
+            <th class="text-left px-4 py-2.5">Tamaño</th>
+            <th class="text-left px-4 py-2.5">Duración</th>
+            <th class="text-left px-4 py-2.5">Hora</th>
+            <th class="text-left px-4 py-2.5">Estado</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-800/50">
-          <tr class="hover:bg-slate-800/30">
-            <td class="px-5 py-4 text-sm font-medium text-white">mysql-prod</td>
-            <td class="px-5 py-4"><span class="text-xs bg-blue-500/10 text-blue-400 px-2 py-1 rounded-md">MySQL</span></td>
-            <td class="px-5 py-4 text-sm text-slate-400">web-server-01</td>
-            <td class="px-5 py-4 text-sm text-slate-400">S3 · backupsmc</td>
-            <td class="px-5 py-4"><code class="text-xs bg-slate-800 text-slate-300 px-2 py-1 rounded">0 3 * * *</code></td>
-            <td class="px-5 py-4"><span class="text-xs text-green-400 bg-green-400/10 px-2 py-1 rounded-full">Activo</span></td>
-            <td class="px-5 py-4">
-              <div class="flex gap-2">
-                <button class="text-slate-500 hover:text-brand-400 transition-colors" title="Ejecutar ahora">
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                </button>
-                <button class="text-slate-500 hover:text-yellow-400 transition-colors" title="Editar">
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                </button>
-                <button class="text-slate-500 hover:text-red-400 transition-colors" title="Eliminar">
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                </button>
-              </div>
+        <tbody class="divide-y divide-gray-50">
+          <tr class="hover:bg-gray-50/60 transition-colors">
+            <td class="px-5 py-3">
+              <div class="text-sm font-medium text-gray-700">MySQL · Producción</div>
+              <div class="text-xs text-gray-400">mysql-prod</div>
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-500">web-server-01</td>
+            <td class="px-4 py-3">
+              <span class="flex items-center gap-1.5 text-xs text-gray-500">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block"></span>S3 · backupsmc
+              </span>
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-500">1.2 GB</td>
+            <td class="px-4 py-3 text-sm text-gray-500">2m 14s</td>
+            <td class="px-4 py-3 text-xs text-gray-400">Hoy 03:00</td>
+            <td class="px-4 py-3">
+              <span class="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 border border-green-100 px-2 py-0.5 rounded-full">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>Exitoso
+              </span>
             </td>
           </tr>
-          <tr class="hover:bg-slate-800/30">
-            <td class="px-5 py-4 text-sm font-medium text-white">pg-glpi</td>
-            <td class="px-5 py-4"><span class="text-xs bg-indigo-500/10 text-indigo-400 px-2 py-1 rounded-md">PostgreSQL</span></td>
-            <td class="px-5 py-4 text-sm text-slate-400">glpi-server</td>
-            <td class="px-5 py-4 text-sm text-slate-400">SFTP · backup-nas</td>
-            <td class="px-5 py-4"><code class="text-xs bg-slate-800 text-slate-300 px-2 py-1 rounded">0 2 * * *</code></td>
-            <td class="px-5 py-4"><span class="text-xs text-green-400 bg-green-400/10 px-2 py-1 rounded-full">Activo</span></td>
-            <td class="px-5 py-4">
-              <div class="flex gap-2">
-                <button class="text-slate-500 hover:text-brand-400 transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></button>
-                <button class="text-slate-500 hover:text-yellow-400 transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
-                <button class="text-slate-500 hover:text-red-400 transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
-              </div>
+          <tr class="hover:bg-gray-50/60 transition-colors">
+            <td class="px-5 py-3">
+              <div class="text-sm font-medium text-gray-700">PostgreSQL · GLPI</div>
+              <div class="text-xs text-gray-400">pg-glpi</div>
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-500">glpi-server</td>
+            <td class="px-4 py-3">
+              <span class="flex items-center gap-1.5 text-xs text-gray-500">
+                <span class="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block"></span>SFTP · backup-nas
+              </span>
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-500">843 MB</td>
+            <td class="px-4 py-3 text-sm text-gray-500">1m 38s</td>
+            <td class="px-4 py-3 text-xs text-gray-400">Hoy 02:00</td>
+            <td class="px-4 py-3">
+              <span class="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 border border-green-100 px-2 py-0.5 rounded-full">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>Exitoso
+              </span>
             </td>
           </tr>
-          <tr class="hover:bg-slate-800/30">
-            <td class="px-5 py-4 text-sm font-medium text-white">files-uploads</td>
-            <td class="px-5 py-4"><span class="text-xs bg-slate-500/10 text-slate-400 px-2 py-1 rounded-md">Archivos</span></td>
-            <td class="px-5 py-4 text-sm text-slate-400">app-server-02</td>
-            <td class="px-5 py-4 text-sm text-slate-400">Local · /backups</td>
-            <td class="px-5 py-4"><code class="text-xs bg-slate-800 text-slate-300 px-2 py-1 rounded">0 23 * * *</code></td>
-            <td class="px-5 py-4"><span class="text-xs text-red-400 bg-red-400/10 px-2 py-1 rounded-full">Error</span></td>
-            <td class="px-5 py-4">
-              <div class="flex gap-2">
-                <button class="text-slate-500 hover:text-brand-400 transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></button>
-                <button class="text-slate-500 hover:text-yellow-400 transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
-                <button class="text-slate-500 hover:text-red-400 transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
-              </div>
+          <tr class="hover:bg-gray-50/60 transition-colors">
+            <td class="px-5 py-3">
+              <div class="text-sm font-medium text-gray-700">/var/uploads · SMC Desk</div>
+              <div class="text-xs text-gray-400">files-uploads</div>
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-500">app-server-02</td>
+            <td class="px-4 py-3">
+              <span class="flex items-center gap-1.5 text-xs text-gray-500">
+                <span class="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block"></span>Local · /backups
+              </span>
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-500">5.7 GB</td>
+            <td class="px-4 py-3 text-sm text-gray-500">8m 52s</td>
+            <td class="px-4 py-3 text-xs text-gray-400">Ayer 23:00</td>
+            <td class="px-4 py-3">
+              <span class="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-50 border border-red-100 px-2 py-0.5 rounded-full">
+                <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>Fallido
+              </span>
             </td>
           </tr>
-          <tr class="hover:bg-slate-800/30">
-            <td class="px-5 py-4 text-sm font-medium text-white">docker-redis</td>
-            <td class="px-5 py-4"><span class="text-xs bg-cyan-500/10 text-cyan-400 px-2 py-1 rounded-md">Docker</span></td>
-            <td class="px-5 py-4 text-sm text-slate-400">docker-host</td>
-            <td class="px-5 py-4 text-sm text-slate-400">S3 · backupsmc</td>
-            <td class="px-5 py-4"><code class="text-xs bg-slate-800 text-slate-300 px-2 py-1 rounded">0 22 * * *</code></td>
-            <td class="px-5 py-4"><span class="text-xs text-green-400 bg-green-400/10 px-2 py-1 rounded-full">Activo</span></td>
-            <td class="px-5 py-4">
-              <div class="flex gap-2">
-                <button class="text-slate-500 hover:text-brand-400 transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></button>
-                <button class="text-slate-500 hover:text-yellow-400 transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
-                <button class="text-slate-500 hover:text-red-400 transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
-              </div>
+          <tr class="hover:bg-gray-50/60 transition-colors">
+            <td class="px-5 py-3">
+              <div class="text-sm font-medium text-gray-700">Docker Vol · Redis</div>
+              <div class="text-xs text-gray-400">docker-redis</div>
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-500">docker-host</td>
+            <td class="px-4 py-3">
+              <span class="flex items-center gap-1.5 text-xs text-gray-500">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block"></span>S3 · backupsmc
+              </span>
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-500">128 MB</td>
+            <td class="px-4 py-3 text-sm text-gray-500">0m 23s</td>
+            <td class="px-4 py-3 text-xs text-gray-400">Ayer 22:00</td>
+            <td class="px-4 py-3">
+              <span class="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 border border-green-100 px-2 py-0.5 rounded-full">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>Exitoso
+              </span>
             </td>
           </tr>
         </tbody>
@@ -761,125 +555,268 @@
     </div>
   </div>
 
-  <!-- ── PAGE: HISTORY ──────────────────────────────────────── -->
-  <div id="page-history" class="p-6 hidden">
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center">
-      <svg class="w-12 h-12 text-slate-700 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-      <p class="text-slate-500 text-sm">Vista de historial completo — en desarrollo</p>
-      <p class="text-slate-600 text-xs mt-1">Aquí aparecerán todas las ejecuciones con filtros, logs y exportación CSV.</p>
+  <!-- ── PAGE: JOBS ────────────────────────── -->
+  <div id="page-jobs" class="hidden flex-1 p-6 space-y-4 overflow-y-auto">
+    <div class="flex items-start justify-between">
+      <div>
+        <h1 class="text-xl font-bold text-gray-800">Jobs</h1>
+        <p class="text-sm text-gray-400 mt-0.5">Configuración de tareas de backup</p>
+      </div>
+      <button class="flex items-center gap-2 bg-primary hover:bg-primary-dark text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors shadow-sm">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        Crear Job
+      </button>
+    </div>
+    <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+      <table class="w-full">
+        <thead>
+          <tr class="text-xs text-gray-400 font-medium border-b border-gray-100 bg-gray-50/50">
+            <th class="text-left px-5 py-3">Nombre</th>
+            <th class="text-left px-4 py-3">Fuente</th>
+            <th class="text-left px-4 py-3">Nodo</th>
+            <th class="text-left px-4 py-3">Destino</th>
+            <th class="text-left px-4 py-3">Cron</th>
+            <th class="text-left px-4 py-3">Estado</th>
+            <th class="text-left px-4 py-3">Acciones</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-50">
+          <tr class="hover:bg-gray-50/60">
+            <td class="px-5 py-3.5 text-sm font-semibold text-gray-700">mysql-prod</td>
+            <td class="px-4 py-3.5"><span class="text-xs bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-md font-medium">MySQL</span></td>
+            <td class="px-4 py-3.5 text-sm text-gray-500">web-server-01</td>
+            <td class="px-4 py-3.5 text-sm text-gray-500">S3 · backupsmc</td>
+            <td class="px-4 py-3.5"><code class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded font-mono">0 3 * * *</code></td>
+            <td class="px-4 py-3.5"><span class="text-xs text-green-700 bg-green-50 border border-green-100 px-2 py-0.5 rounded-full font-medium">Activo</span></td>
+            <td class="px-4 py-3.5">
+              <div class="flex gap-2">
+                <button class="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-primary transition-colors" title="Ejecutar ahora">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </button>
+                <button class="p-1.5 rounded-lg hover:bg-amber-50 text-gray-400 hover:text-amber-600 transition-colors" title="Editar">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                </button>
+                <button class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors" title="Eliminar">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+              </div>
+            </td>
+          </tr>
+          <tr class="hover:bg-gray-50/60">
+            <td class="px-5 py-3.5 text-sm font-semibold text-gray-700">pg-glpi</td>
+            <td class="px-4 py-3.5"><span class="text-xs bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded-md font-medium">PostgreSQL</span></td>
+            <td class="px-4 py-3.5 text-sm text-gray-500">glpi-server</td>
+            <td class="px-4 py-3.5 text-sm text-gray-500">SFTP · backup-nas</td>
+            <td class="px-4 py-3.5"><code class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded font-mono">0 2 * * *</code></td>
+            <td class="px-4 py-3.5"><span class="text-xs text-green-700 bg-green-50 border border-green-100 px-2 py-0.5 rounded-full font-medium">Activo</span></td>
+            <td class="px-4 py-3.5"><div class="flex gap-2"><button class="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-primary transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></button><button class="p-1.5 rounded-lg hover:bg-amber-50 text-gray-400 hover:text-amber-600 transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button><button class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button></div></td>
+          </tr>
+          <tr class="hover:bg-gray-50/60">
+            <td class="px-5 py-3.5 text-sm font-semibold text-gray-700">files-uploads</td>
+            <td class="px-4 py-3.5"><span class="text-xs bg-gray-100 text-gray-600 border border-gray-200 px-2 py-0.5 rounded-md font-medium">Archivos</span></td>
+            <td class="px-4 py-3.5 text-sm text-gray-500">app-server-02</td>
+            <td class="px-4 py-3.5 text-sm text-gray-500">Local · /backups</td>
+            <td class="px-4 py-3.5"><code class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded font-mono">0 23 * * *</code></td>
+            <td class="px-4 py-3.5"><span class="text-xs text-red-700 bg-red-50 border border-red-100 px-2 py-0.5 rounded-full font-medium">Error</span></td>
+            <td class="px-4 py-3.5"><div class="flex gap-2"><button class="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-primary transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></button><button class="p-1.5 rounded-lg hover:bg-amber-50 text-gray-400 hover:text-amber-600 transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button><button class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button></div></td>
+          </tr>
+          <tr class="hover:bg-gray-50/60">
+            <td class="px-5 py-3.5 text-sm font-semibold text-gray-700">docker-redis</td>
+            <td class="px-4 py-3.5"><span class="text-xs bg-cyan-50 text-cyan-600 border border-cyan-100 px-2 py-0.5 rounded-md font-medium">Docker</span></td>
+            <td class="px-4 py-3.5 text-sm text-gray-500">docker-host</td>
+            <td class="px-4 py-3.5 text-sm text-gray-500">S3 · backupsmc</td>
+            <td class="px-4 py-3.5"><code class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded font-mono">0 22 * * *</code></td>
+            <td class="px-4 py-3.5"><span class="text-xs text-green-700 bg-green-50 border border-green-100 px-2 py-0.5 rounded-full font-medium">Activo</span></td>
+            <td class="px-4 py-3.5"><div class="flex gap-2"><button class="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-primary transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></button><button class="p-1.5 rounded-lg hover:bg-amber-50 text-gray-400 hover:text-amber-600 transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button><button class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button></div></td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 
-  <!-- ── PAGE: DESTINATIONS ────────────────────────────────── -->
-  <div id="page-destinations" class="p-6 hidden space-y-4">
-    <div class="flex justify-end">
-      <button class="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+  <!-- ── PAGE: NODES ───────────────────────── -->
+  <div id="page-nodes" class="hidden flex-1 p-6 space-y-4 overflow-y-auto">
+    <div class="flex items-start justify-between">
+      <div>
+        <h1 class="text-xl font-bold text-gray-800">Nodos</h1>
+        <p class="text-sm text-gray-400 mt-0.5">Servidores y agentes registrados</p>
+      </div>
+      <button class="flex items-center gap-2 bg-primary hover:bg-primary-dark text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors shadow-sm">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        Registrar nodo
+      </button>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+        <div class="flex items-start justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <div class="stat-icon bg-green-100"><svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/></svg></div>
+            <div>
+              <div class="text-sm font-semibold text-gray-800">web-server-01</div>
+              <div class="text-xs text-gray-400">192.168.1.10 · Ubuntu 22.04</div>
+            </div>
+          </div>
+          <span class="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-100 px-2 py-0.5 rounded-full font-medium"><span class="w-1.5 h-1.5 rounded-full bg-green-500 pulse"></span>Online</span>
+        </div>
+        <div class="grid grid-cols-3 gap-2 text-center">
+          <div class="bg-gray-50 rounded-lg p-2.5 border border-gray-100"><div class="text-sm font-bold text-gray-800">12</div><div class="text-xs text-gray-400">Jobs</div></div>
+          <div class="bg-gray-50 rounded-lg p-2.5 border border-gray-100"><div class="text-sm font-bold text-gray-800">98%</div><div class="text-xs text-gray-400">Éxito</div></div>
+          <div class="bg-gray-50 rounded-lg p-2.5 border border-gray-100"><div class="text-sm font-bold text-gray-800">v0.1</div><div class="text-xs text-gray-400">Agente</div></div>
+        </div>
+        <div class="mt-3 text-xs text-gray-400">Último contacto: hace 2 min</div>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+        <div class="flex items-start justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <div class="stat-icon bg-green-100"><svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/></svg></div>
+            <div>
+              <div class="text-sm font-semibold text-gray-800">glpi-server</div>
+              <div class="text-xs text-gray-400">192.168.1.20 · Debian 12</div>
+            </div>
+          </div>
+          <span class="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-100 px-2 py-0.5 rounded-full font-medium"><span class="w-1.5 h-1.5 rounded-full bg-green-500 pulse"></span>Online</span>
+        </div>
+        <div class="grid grid-cols-3 gap-2 text-center">
+          <div class="bg-gray-50 rounded-lg p-2.5 border border-gray-100"><div class="text-sm font-bold text-gray-800">8</div><div class="text-xs text-gray-400">Jobs</div></div>
+          <div class="bg-gray-50 rounded-lg p-2.5 border border-gray-100"><div class="text-sm font-bold text-gray-800">100%</div><div class="text-xs text-gray-400">Éxito</div></div>
+          <div class="bg-gray-50 rounded-lg p-2.5 border border-gray-100"><div class="text-sm font-bold text-gray-800">v0.1</div><div class="text-xs text-gray-400">Agente</div></div>
+        </div>
+        <div class="mt-3 text-xs text-gray-400">Último contacto: hace 1 min</div>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+        <div class="flex items-start justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <div class="stat-icon bg-green-100"><svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/></svg></div>
+            <div>
+              <div class="text-sm font-semibold text-gray-800">docker-host</div>
+              <div class="text-xs text-gray-400">192.168.1.30 · Ubuntu 22.04</div>
+            </div>
+          </div>
+          <span class="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-100 px-2 py-0.5 rounded-full font-medium"><span class="w-1.5 h-1.5 rounded-full bg-green-500 pulse"></span>Online</span>
+        </div>
+        <div class="grid grid-cols-3 gap-2 text-center">
+          <div class="bg-gray-50 rounded-lg p-2.5 border border-gray-100"><div class="text-sm font-bold text-gray-800">5</div><div class="text-xs text-gray-400">Jobs</div></div>
+          <div class="bg-gray-50 rounded-lg p-2.5 border border-gray-100"><div class="text-sm font-bold text-gray-800">95%</div><div class="text-xs text-gray-400">Éxito</div></div>
+          <div class="bg-gray-50 rounded-lg p-2.5 border border-gray-100"><div class="text-sm font-bold text-gray-800">v0.1</div><div class="text-xs text-gray-400">Agente</div></div>
+        </div>
+        <div class="mt-3 text-xs text-gray-400">Último contacto: hace 5 min</div>
+      </div>
+      <div class="bg-white border border-red-100 rounded-xl p-5 shadow-sm">
+        <div class="flex items-start justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <div class="stat-icon bg-red-100"><svg class="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/></svg></div>
+            <div>
+              <div class="text-sm font-semibold text-gray-800">app-server-02</div>
+              <div class="text-xs text-gray-400">192.168.1.40 · CentOS 8</div>
+            </div>
+          </div>
+          <span class="inline-flex items-center gap-1 text-xs text-red-700 bg-red-50 border border-red-100 px-2 py-0.5 rounded-full font-medium"><span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>Offline</span>
+        </div>
+        <div class="grid grid-cols-3 gap-2 text-center">
+          <div class="bg-gray-50 rounded-lg p-2.5 border border-gray-100"><div class="text-sm font-bold text-gray-800">3</div><div class="text-xs text-gray-400">Jobs</div></div>
+          <div class="bg-gray-50 rounded-lg p-2.5 border border-gray-100"><div class="text-sm font-bold text-gray-800">67%</div><div class="text-xs text-gray-400">Éxito</div></div>
+          <div class="bg-gray-50 rounded-lg p-2.5 border border-gray-100"><div class="text-sm font-bold text-gray-800">v0.1</div><div class="text-xs text-gray-400">Agente</div></div>
+        </div>
+        <div class="mt-3 text-xs text-red-400">Sin contacto desde hace 2 horas</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PAGE: HISTORY ────────────────────── -->
+  <div id="page-history" class="hidden flex-1 p-6 overflow-y-auto">
+    <div class="mb-5"><h1 class="text-xl font-bold text-gray-800">Historial</h1><p class="text-sm text-gray-400 mt-0.5">Ejecuciones pasadas y logs</p></div>
+    <div class="bg-white border border-gray-200 rounded-xl p-12 text-center shadow-sm">
+      <svg class="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <p class="text-gray-500 text-sm font-medium">Vista de historial completo — en desarrollo</p>
+      <p class="text-gray-400 text-xs mt-1">Filtros, logs detallados y exportación CSV/PDF.</p>
+    </div>
+  </div>
+
+  <!-- ── PAGE: DESTINATIONS ───────────────── -->
+  <div id="page-destinations" class="hidden flex-1 p-6 space-y-4 overflow-y-auto">
+    <div class="flex items-start justify-between">
+      <div><h1 class="text-xl font-bold text-gray-800">Destinos</h1><p class="text-sm text-gray-400 mt-0.5">Almacenamiento configurado</p></div>
+      <button class="flex items-center gap-2 bg-primary hover:bg-primary-dark text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors shadow-sm">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
         Agregar destino
       </button>
     </div>
     <div class="grid grid-cols-3 gap-4">
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-        <div class="flex items-center gap-3 mb-3">
-          <div class="w-9 h-9 bg-orange-500/10 rounded-lg flex items-center justify-center">
-            <svg class="w-5 h-5 text-orange-400" fill="currentColor" viewBox="0 0 24 24"><path d="M13.74 4.23c-.84-1.12-2.54-1.12-3.38 0L.53 17.37C-.4 18.6.43 20.3 1.92 20.3h20.16c1.49 0 2.32-1.7 1.39-2.93L13.74 4.23z"/></svg>
-          </div>
-          <div>
-            <div class="text-sm font-semibold text-white">S3 · backupsmc</div>
-            <div class="text-xs text-slate-500">AWS S3</div>
-          </div>
+      <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="stat-icon bg-amber-100"><svg class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 24 24"><path d="M13.74 4.23c-.84-1.12-2.54-1.12-3.38 0L.53 17.37C-.4 18.6.43 20.3 1.92 20.3h20.16c1.49 0 2.32-1.7 1.39-2.93L13.74 4.23z"/></svg></div>
+          <div><div class="text-sm font-semibold text-gray-800">S3 · backupsmc</div><div class="text-xs text-gray-400">Amazon S3</div></div>
         </div>
-        <div class="text-xs text-slate-500 space-y-1">
-          <div>Bucket: <span class="text-slate-300">backupsmc-backups</span></div>
-          <div>Región: <span class="text-slate-300">us-east-1</span></div>
-          <div>Usado: <span class="text-slate-300">187 GB</span></div>
+        <div class="space-y-1.5 text-xs text-gray-500">
+          <div>Bucket: <span class="text-gray-700 font-medium">backupsmc-backups</span></div>
+          <div>Región: <span class="text-gray-700 font-medium">us-east-1</span></div>
+          <div>Usado: <span class="text-gray-700 font-medium">187 GB</span></div>
         </div>
-        <div class="mt-3 flex items-center justify-between">
-          <span class="text-xs text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">Conectado</span>
-          <button class="text-xs text-slate-500 hover:text-brand-400">Editar</button>
+        <div class="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+          <span class="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-100 px-2 py-0.5 rounded-full font-medium"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>Conectado</span>
+          <button class="text-xs text-primary hover:underline font-medium">Editar</button>
         </div>
       </div>
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-        <div class="flex items-center gap-3 mb-3">
-          <div class="w-9 h-9 bg-blue-500/10 rounded-lg flex items-center justify-center">
-            <svg class="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
-          </div>
-          <div>
-            <div class="text-sm font-semibold text-white">SFTP · backup-nas</div>
-            <div class="text-xs text-slate-500">SFTP</div>
-          </div>
+      <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="stat-icon bg-blue-100"><svg class="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg></div>
+          <div><div class="text-sm font-semibold text-gray-800">SFTP · backup-nas</div><div class="text-xs text-gray-400">SFTP</div></div>
         </div>
-        <div class="text-xs text-slate-500 space-y-1">
-          <div>Host: <span class="text-slate-300">nas.intranet</span></div>
-          <div>Path: <span class="text-slate-300">/backups/smc</span></div>
-          <div>Usado: <span class="text-slate-300">60 GB</span></div>
+        <div class="space-y-1.5 text-xs text-gray-500">
+          <div>Host: <span class="text-gray-700 font-medium">nas.intranet</span></div>
+          <div>Path: <span class="text-gray-700 font-medium">/backups/smc</span></div>
+          <div>Usado: <span class="text-gray-700 font-medium">60 GB</span></div>
         </div>
-        <div class="mt-3 flex items-center justify-between">
-          <span class="text-xs text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">Conectado</span>
-          <button class="text-xs text-slate-500 hover:text-brand-400">Editar</button>
+        <div class="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+          <span class="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-100 px-2 py-0.5 rounded-full font-medium"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>Conectado</span>
+          <button class="text-xs text-primary hover:underline font-medium">Editar</button>
         </div>
       </div>
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-        <div class="flex items-center gap-3 mb-3">
-          <div class="w-9 h-9 bg-slate-700 rounded-lg flex items-center justify-center">
-            <svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"/></svg>
-          </div>
-          <div>
-            <div class="text-sm font-semibold text-white">Local · /backups</div>
-            <div class="text-xs text-slate-500">Disco local</div>
-          </div>
+      <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="stat-icon bg-gray-100"><svg class="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"/></svg></div>
+          <div><div class="text-sm font-semibold text-gray-800">Local · /backups</div><div class="text-xs text-gray-400">Disco local</div></div>
         </div>
-        <div class="text-xs text-slate-500 space-y-1">
-          <div>Path: <span class="text-slate-300">/var/backups/smc</span></div>
-          <div>Libre: <span class="text-slate-300">320 GB</span></div>
-          <div>Total: <span class="text-slate-300">500 GB</span></div>
+        <div class="space-y-1.5 text-xs text-gray-500">
+          <div>Path: <span class="text-gray-700 font-medium">/var/backups/smc</span></div>
+          <div>Libre: <span class="text-gray-700 font-medium">320 GB</span></div>
+          <div>Total: <span class="text-gray-700 font-medium">500 GB</span></div>
         </div>
-        <div class="mt-3 flex items-center justify-between">
-          <span class="text-xs text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">Conectado</span>
-          <button class="text-xs text-slate-500 hover:text-brand-400">Editar</button>
+        <div class="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+          <span class="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-100 px-2 py-0.5 rounded-full font-medium"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>Conectado</span>
+          <button class="text-xs text-primary hover:underline font-medium">Editar</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ── PAGE: SETTINGS ──────────────────────────────────────── -->
-  <div id="page-settings" class="p-6 hidden">
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center">
-      <svg class="w-12 h-12 text-slate-700 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/></svg>
-      <p class="text-slate-500 text-sm">Configuración del sistema — en desarrollo</p>
-      <p class="text-slate-600 text-xs mt-1">SMTP, webhooks, gestión de usuarios y políticas de retención.</p>
+  <!-- ── PAGE: SETTINGS ───────────────────── -->
+  <div id="page-settings" class="hidden flex-1 p-6 overflow-y-auto">
+    <div class="mb-5"><h1 class="text-xl font-bold text-gray-800">Configuración</h1><p class="text-sm text-gray-400 mt-0.5">Ajustes generales del sistema</p></div>
+    <div class="bg-white border border-gray-200 rounded-xl p-12 text-center shadow-sm">
+      <svg class="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/></svg>
+      <p class="text-gray-500 text-sm font-medium">Configuración del sistema — en desarrollo</p>
+      <p class="text-gray-400 text-xs mt-1">SMTP, webhooks, usuarios, retención y notificaciones.</p>
     </div>
   </div>
 
 </main>
-</div><!-- /appLayout -->
+</div>
 
 <script>
-  const pages = ['dashboard','nodes','jobs','history','destinations','settings'];
-  const titles = {
-    dashboard:    ['Dashboard',    'Resumen general del sistema'],
-    nodes:        ['Nodos',        'Servidores y agentes registrados'],
-    jobs:         ['Jobs',         'Configuración de tareas de backup'],
-    history:      ['Historial',    'Ejecuciones pasadas y logs'],
-    destinations: ['Destinos',     'Almacenamiento configurado'],
-    settings:     ['Configuración','Ajustes generales del sistema'],
-  };
-
+  const pages = ['dashboard','jobs','nodes','history','destinations','settings'];
   function showPage(name) {
     pages.forEach(p => {
-      document.getElementById('page-' + p).classList.toggle('hidden', p !== name);
-      const nav = document.getElementById('nav-' + p);
-      nav.className = 'nav-item w-full text-left ' + (p === name ? 'nav-active' : 'nav-inactive');
+      const page = document.getElementById('page-' + p);
+      const nav  = document.getElementById('nav-'  + p);
+      page.classList.toggle('hidden', p !== name);
+      if (nav) nav.className = 'nav-item w-full ' + (p === name ? 'nav-active' : 'nav-inactive');
     });
-    document.getElementById('pageTitle').textContent    = titles[name][0];
-    document.getElementById('pageSubtitle').textContent = titles[name][1];
   }
-
   function showLogin() {
     document.getElementById('loginPage').classList.remove('hidden');
     document.getElementById('appLayout').classList.add('hidden');
   }
-
   function showApp() {
     document.getElementById('loginPage').classList.add('hidden');
     document.getElementById('appLayout').classList.remove('hidden');
