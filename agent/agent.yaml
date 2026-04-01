@@ -1,0 +1,26 @@
+server:
+  url: "http://localhost:8000"
+  api_token: "test"
+  timeout: 30s
+
+backup:
+  source_path: "C:\\Users\\mauroloaiza\\Documents"
+  exclude_patterns:
+    - "*.tmp"
+    - "desktop.ini"
+    - "Thumbs.db"
+  encryption_passphrase: "mi-passphrase-segura-de-prueba-2024"
+  use_vss: false
+  incremental: true
+
+destination:
+  type: local
+  local_path: "C:\\Temp\\backup-test"
+
+retry:
+  max_attempts: 3
+
+log:
+  level: debug
+  format: console
+  path: stdout

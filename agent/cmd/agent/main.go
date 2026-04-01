@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	backup "github.com/smcsoluciones/backup-system/agent/internal/backup"
+	"github.com/smcsoluciones/backup-system/agent/internal/backup/restore"
 	"github.com/smcsoluciones/backup-system/agent/internal/config"
 	"github.com/smcsoluciones/backup-system/agent/internal/destination/local"
 	"github.com/smcsoluciones/backup-system/agent/internal/reporter"
@@ -137,36 +138,93 @@ func restoreCmd() *cobra.Command {
 	var (
 		jobID      string
 		targetPath string
+		passphrase string
+		filter     string
+		overwrite  bool
+		dryRun     bool
+		restoreACL bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "restore",
 		Short: "Restore files from a backup job",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if jobID == "" {
-				return fmt.Errorf("--job-id is required")
-			}
-			if targetPath == "" {
-				return fmt.Errorf("--target is required")
-			}
+		Example: `  # Restore all files from a job
+  backupsmc-agent restore -c agent.yaml --job-id <id> --target C:\Restore
 
-			_, log, err := setup()
+  # Restore only files matching a pattern
+  backupsmc-agent restore -c agent.yaml --job-id <id> --target C:\Restore --filter "docs/*"
+
+  # Preview what would be restored (no writes)
+  backupsmc-agent restore -c agent.yaml --job-id <id> --target C:\Restore --dry-run`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, log, err := setup()
 			if err != nil {
 				return err
 			}
 			defer log.Sync() //nolint:errcheck
 
-			log.Info("restore not yet implemented",
-				zap.String("job_id", jobID),
-				zap.String("target", targetPath),
-			)
-			fmt.Println("Restore command — coming in v0.2.0")
+			// Passphrase: flag > config
+			if passphrase == "" {
+				passphrase = cfg.Backup.EncryptionPassphrase
+			}
+
+			dest, err := local.New(cfg.Destination.LocalPath)
+			if err != nil {
+				return fmt.Errorf("destination: %w", err)
+			}
+			defer dest.Close()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			sigs := make(chan os.Signal, 1)
+			signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+			go func() {
+				<-sigs
+				log.Info("received shutdown signal...")
+				cancel()
+			}()
+
+			engine := restore.New(dest, log)
+			result, err := engine.Run(ctx, restore.Options{
+				JobID:             jobID,
+				TargetPath:        targetPath,
+				Passphrase:        passphrase,
+				Filter:            filter,
+				OverwriteExisting: overwrite,
+				DryRun:            dryRun,
+				RestoreACLs:       restoreACL,
+			})
+			if err != nil {
+				log.Error("restore failed", zap.Error(err))
+				return err
+			}
+
+			if dryRun {
+				fmt.Printf("\n[DRY RUN] Would restore %d file(s) from job %s\n", result.RestoredFiles, result.JobID)
+			} else {
+				fmt.Printf("\nRestore complete: %d restored, %d skipped, %d errors — %.2fs\n",
+					result.RestoredFiles,
+					result.SkippedFiles,
+					result.ErrorFiles,
+					result.FinishedAt.Sub(result.StartedAt).Seconds(),
+				)
+			}
+
+			if result.ErrorFiles > 0 {
+				return fmt.Errorf("%d file(s) failed to restore", result.ErrorFiles)
+			}
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVar(&jobID, "job-id", "", "job ID to restore")
-	cmd.Flags().StringVar(&targetPath, "target", "", "target directory for restored files")
+	cmd.Flags().StringVar(&jobID, "job-id", "", "job ID to restore (required)")
+	cmd.Flags().StringVar(&targetPath, "target", "", "target directory for restored files (required)")
+	cmd.Flags().StringVar(&passphrase, "passphrase", "", "decryption passphrase (default: from config)")
+	cmd.Flags().StringVar(&filter, "filter", "", "glob pattern to restore a subset (e.g. 'docs/*')")
+	cmd.Flags().BoolVar(&overwrite, "overwrite", false, "overwrite existing files at target")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "list files that would be restored without writing")
+	cmd.Flags().BoolVar(&restoreACL, "restore-acl", true, "restore Windows ACLs from backup (Windows only)")
 	_ = cmd.MarkFlagRequired("job-id")
 	_ = cmd.MarkFlagRequired("target")
 	return cmd
