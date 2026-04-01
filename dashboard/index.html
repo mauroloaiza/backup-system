@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BackupSMC — Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .sidebar-link { @apply flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-colors cursor-pointer; }
+    .sidebar-link.active { @apply bg-indigo-600 text-white; }
+    .stat-card { @apply bg-white rounded-xl p-5 shadow-sm border border-slate-100; }
+    .badge-running  { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700; }
+    .badge-completed{ @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700; }
+    .badge-failed   { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700; }
+    .badge-warning  { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700; }
+    .badge-online   { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700; }
+    .badge-offline  { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500; }
+    .pulse { animation: pulse 2s cubic-bezier(0.4,0,0.6,1) infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+    [x-cloak] { display: none !important; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+<div class="flex h-screen overflow-hidden">
+
+  <!-- Sidebar -->
+  <aside class="w-60 bg-[#0f172a] flex flex-col flex-shrink-0">
+    <!-- Logo -->
+    <div class="px-6 py-5 border-b border-slate-800">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+          </svg>
+        </div>
+        <span class="text-white font-bold text-lg tracking-tight">BackupSMC</span>
+      </div>
+    </div>
+
+    <!-- Nav -->
+    <nav class="flex-1 px-3 py-4 space-y-1">
+      <a onclick="showPage('dashboard')" class="sidebar-link active" id="nav-dashboard">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+        </svg>
+        Dashboard
+      </a>
+      <a onclick="showPage('nodes')" class="sidebar-link" id="nav-nodes">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/>
+        </svg>
+        Nodos
+        <span id="badge-nodes" class="ml-auto bg-indigo-500 text-white text-xs px-1.5 py-0.5 rounded-full hidden"></span>
+      </a>
+      <a onclick="showPage('jobs')" class="sidebar-link" id="nav-jobs">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+        </svg>
+        Jobs
+      </a>
+      <a onclick="showPage('history')" class="sidebar-link" id="nav-history">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        Historial
+      </a>
+    </nav>
+
+    <!-- Server status -->
+    <div class="px-4 py-4 border-t border-slate-800">
+      <div class="flex items-center gap-2 text-xs text-slate-500">
+        <span id="server-dot" class="w-2 h-2 rounded-full bg-slate-600"></span>
+        <span id="server-label">Conectando...</span>
+      </div>
+      <div class="text-xs text-slate-600 mt-1">API: <span id="api-url" class="text-slate-400"></span></div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="flex-1 overflow-y-auto">
+
+    <!-- Top bar -->
+    <header class="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between sticky top-0 z-10">
+      <h1 id="page-title" class="text-lg font-semibold text-slate-800">Dashboard</h1>
+      <div class="flex items-center gap-3">
+        <span id="last-refresh" class="text-xs text-slate-400"></span>
+        <button onclick="loadAll()" class="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors">
+          ↻ Actualizar
+        </button>
+        <div class="text-xs bg-slate-100 px-3 py-1.5 rounded-lg">
+          Auto-refresh: <span id="countdown" class="font-medium text-indigo-600">10s</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ── DASHBOARD PAGE ── -->
+    <div id="page-dashboard" class="p-8 space-y-6">
+
+      <!-- Stat cards row 1 -->
+      <div class="grid grid-cols-4 gap-4">
+        <div class="stat-card">
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Nodos online</p>
+              <p id="stat-nodes-online" class="text-3xl font-bold text-slate-900 mt-1">—</p>
+              <p id="stat-nodes-sub" class="text-xs text-slate-400 mt-1">de — registrados</p>
+            </div>
+            <div class="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Jobs hoy</p>
+              <p id="stat-runs-today" class="text-3xl font-bold text-slate-900 mt-1">—</p>
+              <p id="stat-runs-sub" class="text-xs text-slate-400 mt-1">— completados</p>
+            </div>
+            <div class="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">En ejecución</p>
+              <p id="stat-running" class="text-3xl font-bold text-slate-900 mt-1">—</p>
+              <p class="text-xs text-slate-400 mt-1">ahora mismo</p>
+            </div>
+            <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M13 10V3L4 14h7v7l9-11h-7z"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Fallos</p>
+              <p id="stat-failed" class="text-3xl font-bold text-slate-900 mt-1">—</p>
+              <p class="text-xs text-slate-400 mt-1">en total</p>
+            </div>
+            <div class="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 2: bytes + running jobs -->
+      <div class="grid grid-cols-3 gap-4">
+
+        <!-- Bytes backed up today -->
+        <div class="stat-card col-span-2">
+          <p class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Datos respaldados hoy</p>
+          <p id="stat-bytes-today" class="text-2xl font-bold text-indigo-600">—</p>
+          <p class="text-xs text-slate-400 mt-1">Total histórico: <span id="stat-bytes-total" class="font-medium text-slate-600">—</span></p>
+        </div>
+
+        <!-- Running now -->
+        <div class="stat-card">
+          <p class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">En ejecución ahora</p>
+          <div id="running-list" class="space-y-3 text-sm">
+            <p class="text-slate-400 text-xs">Sin jobs activos</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent runs table -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100">
+          <h2 class="text-sm font-semibold text-slate-700">Últimas ejecuciones</h2>
+        </div>
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
+            <tr>
+              <th class="text-left px-6 py-3">Job ID</th>
+              <th class="text-left px-6 py-3">Nodo</th>
+              <th class="text-left px-6 py-3">Tipo</th>
+              <th class="text-left px-6 py-3">Estado</th>
+              <th class="text-right px-6 py-3">Archivos</th>
+              <th class="text-right px-6 py-3">Datos</th>
+              <th class="text-right px-6 py-3">Duración</th>
+              <th class="text-left px-6 py-3">Inicio</th>
+            </tr>
+          </thead>
+          <tbody id="recent-runs" class="divide-y divide-slate-50">
+            <tr><td colspan="8" class="px-6 py-8 text-center text-slate-400">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── NODES PAGE ── -->
+    <div id="page-nodes" class="p-8 hidden">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100">
+          <h2 class="text-sm font-semibold text-slate-700">Nodos registrados</h2>
+        </div>
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
+            <tr>
+              <th class="text-left px-6 py-3">ID</th>
+              <th class="text-left px-6 py-3">Hostname</th>
+              <th class="text-left px-6 py-3">OS</th>
+              <th class="text-left px-6 py-3">Versión</th>
+              <th class="text-left px-6 py-3">Estado</th>
+              <th class="text-left px-6 py-3">Última actividad</th>
+            </tr>
+          </thead>
+          <tbody id="nodes-table" class="divide-y divide-slate-50">
+            <tr><td colspan="6" class="px-6 py-8 text-center text-slate-400">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── JOBS PAGE ── -->
+    <div id="page-jobs" class="p-8 hidden">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-slate-700">Todos los jobs</h2>
+          <div class="flex gap-2">
+            <select id="filter-status" onchange="loadJobs()" class="text-xs border border-slate-200 rounded-lg px-3 py-1.5">
+              <option value="">Todos los estados</option>
+              <option value="running">En ejecución</option>
+              <option value="completed">Completados</option>
+              <option value="failed">Fallidos</option>
+              <option value="warning">Advertencia</option>
+            </select>
+          </div>
+        </div>
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
+            <tr>
+              <th class="text-left px-6 py-3">Job ID</th>
+              <th class="text-left px-6 py-3">Nodo</th>
+              <th class="text-left px-6 py-3">Tipo</th>
+              <th class="text-left px-6 py-3">Estado</th>
+              <th class="text-right px-6 py-3">Progreso</th>
+              <th class="text-right px-6 py-3">Datos</th>
+              <th class="text-left px-6 py-3">Inicio</th>
+            </tr>
+          </thead>
+          <tbody id="jobs-table" class="divide-y divide-slate-50">
+            <tr><td colspan="7" class="px-6 py-8 text-center text-slate-400">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── HISTORY PAGE ── -->
+    <div id="page-history" class="p-8 hidden">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-8 text-center text-slate-400">
+        <svg class="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <p class="font-medium">Historial con gráficos — próximamente</p>
+        <p class="text-sm mt-1">Charts de tendencia por día, semana y mes</p>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────────────
+const API = localStorage.getItem('bsmc_api') || 'http://localhost:8000';
+document.getElementById('api-url').textContent = API;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const fmt = {
+  bytes(b) {
+    if (!b || b === 0) return '0 B';
+    const units = ['B','KB','MB','GB','TB'];
+    const i = Math.floor(Math.log(b) / Math.log(1024));
+    return (b / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
+  },
+  duration(s) {
+    if (s == null) return '—';
+    if (s < 60) return s.toFixed(1) + 's';
+    if (s < 3600) return Math.floor(s/60) + 'm ' + Math.floor(s%60) + 's';
+    return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
+  },
+  date(d) {
+    if (!d) return '—';
+    return new Date(d).toLocaleString('es-CO', {
+      month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'
+    });
+  },
+  shortId(id) {
+    return id ? id.substring(0, 8) + '...' : '—';
+  }
+};
+
+function badge(status) {
+  const map = {
+    running:   `<span class="badge-running"><span class="w-1.5 h-1.5 rounded-full bg-blue-500 pulse inline-block"></span>Ejecutando</span>`,
+    completed: `<span class="badge-completed">✓ Completado</span>`,
+    failed:    `<span class="badge-failed">✕ Fallido</span>`,
+    warning:   `<span class="badge-warning">⚠ Advertencia</span>`,
+    online:    `<span class="badge-online"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>Online</span>`,
+    offline:   `<span class="badge-offline">Offline</span>`,
+  };
+  return map[status] || `<span class="badge-offline">${status}</span>`;
+}
+
+function progressBar(pct) {
+  const color = pct >= 100 ? 'bg-emerald-500' : 'bg-indigo-500';
+  return `
+    <div class="flex items-center gap-2 justify-end">
+      <div class="w-20 bg-slate-100 rounded-full h-1.5 overflow-hidden">
+        <div class="${color} h-1.5 rounded-full transition-all" style="width:${Math.min(pct,100)}%"></div>
+      </div>
+      <span class="text-xs text-slate-500 w-9 text-right">${pct}%</span>
+    </div>`;
+}
+
+// ── API calls ─────────────────────────────────────────────────────────────────
+async function apiFetch(path) {
+  const r = await fetch(API + path);
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+async function checkServer() {
+  try {
+    await apiFetch('/health');
+    document.getElementById('server-dot').className = 'w-2 h-2 rounded-full bg-emerald-500';
+    document.getElementById('server-label').textContent = 'Servidor online';
+    return true;
+  } catch {
+    document.getElementById('server-dot').className = 'w-2 h-2 rounded-full bg-red-500';
+    document.getElementById('server-label').textContent = 'Sin conexión';
+    return false;
+  }
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const d = await apiFetch('/api/v1/dashboard');
+
+    document.getElementById('stat-nodes-online').textContent = d.nodes_online;
+    document.getElementById('stat-nodes-sub').textContent = `de ${d.total_nodes} registrados`;
+    document.getElementById('stat-runs-today').textContent = d.runs_today;
+    document.getElementById('stat-runs-sub').textContent = `${d.runs_completed} completados`;
+    document.getElementById('stat-running').textContent = d.runs_running;
+    document.getElementById('stat-failed').textContent = d.runs_failed;
+    document.getElementById('stat-bytes-today').textContent = fmt.bytes(d.bytes_backed_up_today);
+    document.getElementById('stat-bytes-total').textContent = fmt.bytes(d.bytes_backed_up_total);
+
+    // Nodes badge
+    if (d.total_nodes > 0) {
+      const b = document.getElementById('badge-nodes');
+      b.textContent = d.total_nodes;
+      b.classList.remove('hidden');
+    }
+
+    // Running now
+    const rl = document.getElementById('running-list');
+    if (d.running_now.length === 0) {
+      rl.innerHTML = '<p class="text-slate-400 text-xs">Sin jobs activos</p>';
+    } else {
+      rl.innerHTML = d.running_now.map(r => `
+        <div class="border border-slate-100 rounded-lg p-2.5">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="font-mono text-xs text-slate-700">${fmt.shortId(r.job_id)}</span>
+            <span class="text-xs text-slate-400">${r.node_id || '—'}</span>
+          </div>
+          ${progressBar(r.progress_pct)}
+          <p class="text-xs text-slate-400 mt-1 truncate">${r.current_file || ''}</p>
+        </div>
+      `).join('');
+    }
+
+    // Recent runs table
+    const tbody = document.getElementById('recent-runs');
+    if (d.recent_runs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="px-6 py-8 text-center text-slate-400">Sin ejecuciones aún. Corre el agente para ver datos aquí.</td></tr>';
+    } else {
+      tbody.innerHTML = d.recent_runs.map(r => `
+        <tr class="hover:bg-slate-50 transition-colors">
+          <td class="px-6 py-3 font-mono text-xs text-slate-600">${fmt.shortId(r.job_id)}</td>
+          <td class="px-6 py-3 text-slate-700">${r.node_id || '—'}</td>
+          <td class="px-6 py-3 text-slate-500 capitalize">${r.backup_type}</td>
+          <td class="px-6 py-3">${badge(r.status)}</td>
+          <td class="px-6 py-3 text-right text-slate-600">${r.files_done.toLocaleString()} / ${r.files_total.toLocaleString()}</td>
+          <td class="px-6 py-3 text-right text-slate-600">${fmt.bytes(r.bytes_done)}</td>
+          <td class="px-6 py-3 text-right text-slate-500">${fmt.duration(r.duration_seconds)}</td>
+          <td class="px-6 py-3 text-slate-400 text-xs">${fmt.date(r.started_at)}</td>
+        </tr>
+      `).join('');
+    }
+  } catch(e) {
+    console.error('Dashboard error:', e);
+  }
+}
+
+// ── Nodes ─────────────────────────────────────────────────────────────────────
+async function loadNodes() {
+  try {
+    const nodes = await apiFetch('/api/v1/nodes');
+    const tbody = document.getElementById('nodes-table');
+    if (nodes.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-8 text-center text-slate-400">Sin nodos registrados. El agente se registra automáticamente al correr.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = nodes.map(n => `
+      <tr class="hover:bg-slate-50 transition-colors">
+        <td class="px-6 py-3 font-mono text-xs text-slate-600">${n.id}</td>
+        <td class="px-6 py-3 font-medium text-slate-800">${n.hostname}</td>
+        <td class="px-6 py-3 text-slate-500 capitalize">${n.os}</td>
+        <td class="px-6 py-3 text-slate-400">v${n.agent_version}</td>
+        <td class="px-6 py-3">${badge(n.status)}</td>
+        <td class="px-6 py-3 text-slate-400 text-xs">${fmt.date(n.last_seen)}</td>
+      </tr>
+    `).join('');
+  } catch(e) { console.error(e); }
+}
+
+// ── Jobs ──────────────────────────────────────────────────────────────────────
+async function loadJobs() {
+  const status = document.getElementById('filter-status')?.value || '';
+  try {
+    const jobs = await apiFetch('/api/v1/jobs?limit=100' + (status ? `&status=${status}` : ''));
+    const tbody = document.getElementById('jobs-table');
+    if (jobs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-8 text-center text-slate-400">Sin jobs.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = jobs.map(r => `
+      <tr class="hover:bg-slate-50 transition-colors">
+        <td class="px-6 py-3 font-mono text-xs text-slate-600">${fmt.shortId(r.job_id)}</td>
+        <td class="px-6 py-3 text-slate-700">${r.node_id || '—'}</td>
+        <td class="px-6 py-3 text-slate-500 capitalize">${r.backup_type}</td>
+        <td class="px-6 py-3">${badge(r.status)}</td>
+        <td class="px-6 py-3">${progressBar(r.progress_pct)}</td>
+        <td class="px-6 py-3 text-right text-slate-600">${fmt.bytes(r.bytes_done)}</td>
+        <td class="px-6 py-3 text-slate-400 text-xs">${fmt.date(r.started_at)}</td>
+      </tr>
+    `).join('');
+  } catch(e) { console.error(e); }
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+const pages = ['dashboard','nodes','jobs','history'];
+const titles = { dashboard:'Dashboard', nodes:'Nodos', jobs:'Jobs', history:'Historial' };
+
+function showPage(page) {
+  pages.forEach(p => {
+    document.getElementById('page-'+p).classList.toggle('hidden', p !== page);
+    document.getElementById('nav-'+p).classList.toggle('active', p === page);
+  });
+  document.getElementById('page-title').textContent = titles[page];
+  if (page === 'nodes') loadNodes();
+  if (page === 'jobs') loadJobs();
+}
+
+// ── Auto-refresh ──────────────────────────────────────────────────────────────
+async function loadAll() {
+  document.getElementById('last-refresh').textContent = 'Actualizando...';
+  await checkServer();
+  await loadDashboard();
+  document.getElementById('last-refresh').textContent =
+    'Actualizado: ' + new Date().toLocaleTimeString('es-CO');
+}
+
+let countdown = 10;
+setInterval(async () => {
+  countdown--;
+  document.getElementById('countdown').textContent = countdown + 's';
+  if (countdown <= 0) {
+    countdown = 10;
+    const page = pages.find(p => !document.getElementById('page-'+p).classList.contains('hidden'));
+    if (page === 'dashboard') await loadAll();
+    if (page === 'nodes') await loadNodes();
+    if (page === 'jobs') await loadJobs();
+  }
+}, 1000);
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadAll();
+</script>
+</body>
+</html>
