@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body { font-family: 'Inter', sans-serif; }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
+}
+
+@layer utilities {
+  .nav-item {
+    @apply flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13.5px] font-medium cursor-pointer transition-colors w-full text-left;
+  }
+  .nav-active  { @apply bg-primary text-white; }
+  .nav-inactive { @apply text-[#8b9ab4] hover:bg-white/[0.06] hover:text-[#c9d4e8]; }
+}
+
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.pulse { animation: pulse 2s ease-in-out infinite; }
+
+@keyframes fillBar { from { width: 0 } }
+.bar-fill { animation: fillBar 0.8s ease-out forwards; }
