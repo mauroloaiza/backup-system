@@ -1,0 +1,30 @@
+server:
+  url: "https://backup.smcsoluciones.com"
+  api_token: "your-api-token-here"
+  timeout: 30s
+
+backup:
+  source_path: "C:\\Users"
+  exclude_patterns:
+    - "*.tmp"
+    - "*.log"
+    - "Thumbs.db"
+    - "desktop.ini"
+    - "$RECYCLE.BIN"
+    - "System Volume Information"
+  encryption_passphrase: "change-me-use-a-strong-passphrase-32chars"
+  use_vss: true
+  incremental: true
+
+destination:
+  type: local
+  local_path: "D:\\Backups\\BackupSMC"
+
+retry:
+  max_attempts: 3
+  initial_delay: 1s
+
+log:
+  level: info
+  format: console
+  path: stdout
