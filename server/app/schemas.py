@@ -94,6 +94,42 @@ class JobRunOut(BaseModel):
         from_attributes = True
 
 
+# ── Agent Tokens ──────────────────────────────────────────────────────────────
+
+class AgentTokenOut(BaseModel):
+    id: int
+    name: str
+    token: str
+    is_active: bool
+    last_used_at: Optional[datetime]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class AgentTokenCreate(BaseModel):
+    name: str
+
+
+# ── Settings ──────────────────────────────────────────────────────────────────
+
+class SettingsOut(BaseModel):
+    server_version: str
+    agent_token: Optional[str]  # first active token (backward compat)
+    notify_email_enabled: bool
+    notify_email_to: str
+    notify_on_failure: bool
+    notify_on_success: bool
+    notify_daily_summary: bool
+
+class SettingsUpdate(BaseModel):
+    notify_email_enabled: Optional[bool] = None
+    notify_email_to: Optional[str] = None
+    notify_on_failure: Optional[bool] = None
+    notify_on_success: Optional[bool] = None
+    notify_daily_summary: Optional[bool] = None
+
+
 # ── History / Stats ───────────────────────────────────────────────────────────
 
 class DailyStatPoint(BaseModel):

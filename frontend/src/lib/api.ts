@@ -100,3 +100,41 @@ export interface HistoryStats {
 
 export const fetchHistory = (days = 30) =>
   api.get<HistoryStats>('/stats/history', { params: { days } }).then(r => r.data)
+
+// ── Tokens ────────────────────────────────────────────────────────────────────
+
+export interface AgentToken {
+  id: number
+  name: string
+  token: string
+  is_active: boolean
+  last_used_at: string | null
+  created_at: string
+}
+
+export const fetchTokens = () =>
+  api.get<AgentToken[]>('/tokens').then(r => r.data)
+
+export const createToken = (name: string) =>
+  api.post<AgentToken>('/tokens', { name }).then(r => r.data)
+
+export const revokeToken = (id: number) =>
+  api.delete(`/tokens/${id}`).then(r => r.data)
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+
+export interface Settings {
+  server_version: string
+  agent_token: string | null
+  notify_email_enabled: boolean
+  notify_email_to: string
+  notify_on_failure: boolean
+  notify_on_success: boolean
+  notify_daily_summary: boolean
+}
+
+export const fetchSettings = () =>
+  api.get<Settings>('/settings').then(r => r.data)
+
+export const updateSettings = (data: Partial<Omit<Settings, 'server_version' | 'agent_token'>>) =>
+  api.put<Settings>('/settings', data).then(r => r.data)

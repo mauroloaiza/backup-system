@@ -80,10 +80,10 @@ jobs:
           flags: server
 
   # ─────────────────────────────────────────────────────────
-  # Agent — Go
+  # Agent Windows — Go
   # ─────────────────────────────────────────────────────────
   agent:
-    name: Agent (Go)
+    name: Agent Windows (Go)
     runs-on: ubuntu-latest
 
     steps:
@@ -112,6 +112,46 @@ jobs:
       - name: Test
         working-directory: agent
         run: go test ./... -v -race -coverprofile=coverage.out
+
+  # ─────────────────────────────────────────────────────────
+  # Agent Linux — Go
+  # ─────────────────────────────────────────────────────────
+  agent-linux:
+    name: Agent Linux (Go)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache-dependency-path: agent-linux/go.sum
+
+      - name: Download dependencies
+        working-directory: agent-linux
+        run: go mod download
+
+      - name: Build (amd64)
+        working-directory: agent-linux
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: amd64
+        run: go build ./...
+
+      - name: Build (arm64)
+        working-directory: agent-linux
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: arm64
+        run: go build ./...
+
+      - name: Test
+        working-directory: agent-linux
+        run: go test ./... -v
 
   # ─────────────────────────────────────────────────────────
   # Frontend — React / TypeScript

@@ -67,10 +67,26 @@ def get_current_user(
     return user
 
 
-def require_agent_token(x_agent_token: str = Header(None)):
-    """Dependency for agent-only endpoints (register, progress)."""
-    if x_agent_token != AGENT_TOKEN:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token de agente inválido",
-        )
+def require_agent_token(
+    x_agent_token: str = Header(None),
+    db: Session = Depends(get_db),
+):
+    """Dependency for agent-only endpoints — validates against agent_tokens table."""
+    from app.models import AgentToken
+    from datetime import datetime, timezone
+
+    if not x_agent_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token requerido")
+
+    token = db.query(AgentToken).filter(
+        AgentToken.token == x_agent_token,
+        AgentToken.is_active == True,  # noqa: E712
+    ).first()
+
+    if not token:
+        # backward compat: also accept the env-var token
+        if x_agent_token != AGENT_TOKEN:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token de agente inválido")
+    else:
+        token.last_used_at = datetime.now(timezone.utc)
+        db.commit()

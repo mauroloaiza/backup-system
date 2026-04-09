@@ -12,13 +12,15 @@ from sqlalchemy import func, text
 import os
 
 from app.database import engine, get_db, Base
-from app.models import Node, JobRun, User
+from app.models import Node, JobRun, User, AgentToken, SystemSetting
 from app.schemas import (
     NodeRegister, NodeOut, NodeSourcePathsUpdate,
     ProgressUpdate,
     JobRunOut,
     DashboardStats,
     HistoryStats, DailyStatPoint,
+    AgentTokenOut, AgentTokenCreate,
+    SettingsOut, SettingsUpdate,
     LoginRequest, Token, UserOut,
 )
 from app.auth import (
@@ -42,6 +44,20 @@ def _run_migrations():
             except Exception:
                 pass
 
+
+def _seed_agent_token():
+    """If no agent tokens exist, create one from env or generate a default."""
+    import secrets
+    env_token = os.getenv("AGENT_TOKEN", "")
+    db = next(get_db())
+    try:
+        if db.query(AgentToken).count() == 0:
+            token_val = env_token if env_token else secrets.token_urlsafe(32)
+            db.add(AgentToken(name="default", token=token_val, is_active=True))
+            db.commit()
+    finally:
+        db.close()
+
 _run_migrations()
 
 # Seed default admin user from env
@@ -57,6 +73,7 @@ def _seed_admin():
         db.close()
 
 _seed_admin()
+_seed_agent_token()
 
 # ── App ───────────────────────────────────────────────────────────────────────
 
@@ -340,3 +357,80 @@ def history_stats(days: int = Query(30, ge=7, le=365), db: Session = Depends(get
         total_bytes=total_bytes,
         total_runs=total_runs,
     )
+
+
+# ── Agent Tokens ──────────────────────────────────────────────────────────────
+
+@app.get("/api/v1/tokens", response_model=list[AgentTokenOut], tags=["tokens"],
+         dependencies=[Depends(get_current_user)])
+def list_tokens(db: Session = Depends(get_db)):
+    return db.query(AgentToken).order_by(AgentToken.created_at.desc()).all()
+
+
+@app.post("/api/v1/tokens", response_model=AgentTokenOut, tags=["tokens"],
+          dependencies=[Depends(get_current_user)])
+def create_token(body: AgentTokenCreate, db: Session = Depends(get_db)):
+    import secrets
+    token = AgentToken(name=body.name, token=secrets.token_urlsafe(32), is_active=True)
+    db.add(token)
+    db.commit()
+    db.refresh(token)
+    return token
+
+
+@app.delete("/api/v1/tokens/{token_id}", tags=["tokens"],
+            dependencies=[Depends(get_current_user)])
+def revoke_token(token_id: int, db: Session = Depends(get_db)):
+    token = db.query(AgentToken).filter(AgentToken.id == token_id).first()
+    if not token:
+        raise HTTPException(status_code=404, detail="Token not found")
+    token.is_active = False
+    db.commit()
+    return {"ok": True}
+
+
+# ── Settings ──────────────────────────────────────────────────────────────────
+
+def _get_setting(db: Session, key: str, default: str = "") -> str:
+    s = db.query(SystemSetting).filter(SystemSetting.key == key).first()
+    return s.value if s else default
+
+
+def _set_setting(db: Session, key: str, value: str):
+    s = db.query(SystemSetting).filter(SystemSetting.key == key).first()
+    if s:
+        s.value = value
+    else:
+        db.add(SystemSetting(key=key, value=value))
+    db.commit()
+
+
+@app.get("/api/v1/settings", response_model=SettingsOut, tags=["settings"],
+         dependencies=[Depends(get_current_user)])
+def get_settings(db: Session = Depends(get_db)):
+    first_token = db.query(AgentToken).filter(AgentToken.is_active == True).first()  # noqa: E712
+    return SettingsOut(
+        server_version="0.5.0",
+        agent_token=first_token.token if first_token else None,
+        notify_email_enabled=_get_setting(db, "notify_email_enabled", "false") == "true",
+        notify_email_to=_get_setting(db, "notify_email_to", ""),
+        notify_on_failure=_get_setting(db, "notify_on_failure", "true") == "true",
+        notify_on_success=_get_setting(db, "notify_on_success", "false") == "true",
+        notify_daily_summary=_get_setting(db, "notify_daily_summary", "false") == "true",
+    )
+
+
+@app.put("/api/v1/settings", response_model=SettingsOut, tags=["settings"],
+         dependencies=[Depends(get_current_user)])
+def update_settings(body: SettingsUpdate, db: Session = Depends(get_db)):
+    if body.notify_email_enabled is not None:
+        _set_setting(db, "notify_email_enabled", str(body.notify_email_enabled).lower())
+    if body.notify_email_to is not None:
+        _set_setting(db, "notify_email_to", body.notify_email_to)
+    if body.notify_on_failure is not None:
+        _set_setting(db, "notify_on_failure", str(body.notify_on_failure).lower())
+    if body.notify_on_success is not None:
+        _set_setting(db, "notify_on_success", str(body.notify_on_success).lower())
+    if body.notify_daily_summary is not None:
+        _set_setting(db, "notify_daily_summary", str(body.notify_daily_summary).lower())
+    return get_settings(db)

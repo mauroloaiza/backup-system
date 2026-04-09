@@ -53,21 +53,11 @@ jobs:
             ${{ env.IMAGE_PREFIX }}-frontend:latest
 
   # ─────────────────────────────────────────────────────────
-  # Compilar binarios del agente Go (multi-platform)
+  # Compilar agente Windows
   # ─────────────────────────────────────────────────────────
-  build-agent:
-    name: Build Agent binaries
+  build-agent-windows:
+    name: Build Agent Windows
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        include:
-          - goos: linux
-            goarch: amd64
-          - goos: linux
-            goarch: arm64
-          - goos: windows
-            goarch: amd64
 
     steps:
       - uses: actions/checkout@v4
@@ -76,24 +66,73 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.22"
+          cache-dependency-path: agent/go.sum
 
-      - name: Build agent
+      - name: Build
         working-directory: agent
         env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+          GOOS: windows
+          GOARCH: amd64
         run: |
-          EXT=""
-          if [ "${{ matrix.goos }}" = "windows" ]; then EXT=".exe"; fi
           go build -ldflags="-w -s -X main.Version=${GITHUB_REF_NAME}" \
-            -o bin/backupsmc-agent-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} \
-            cmd/agent/main.go
+            -o bin/backupsmc-agent-windows-amd64.exe \
+            ./cmd/agent/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: agent-${{ matrix.goos }}-${{ matrix.goarch }}
+          name: agent-windows-amd64
           path: agent/bin/
+
+  # ─────────────────────────────────────────────────────────
+  # Compilar agente Linux (multi-arch, binario estático)
+  # ─────────────────────────────────────────────────────────
+  build-agent-linux:
+    name: Build Agent Linux (${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        include:
+          - goarch: amd64
+            cc: ""
+          - goarch: arm64
+            cc: aarch64-linux-gnu-gcc
+          - goarch: arm
+            cc: arm-linux-gnueabihf-gcc
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache-dependency-path: agent-linux/go.sum
+
+      - name: Install cross-compilers
+        if: matrix.goarch != 'amd64'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf
+
+      - name: Build
+        working-directory: agent-linux
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build -ldflags="-w -s -X main.version=${GITHUB_REF_NAME}" \
+            -o bin/backupsmc-agent-linux-${{ matrix.goarch }} \
+            ./cmd/backupsmc-agent/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-linux-${{ matrix.goarch }}
+          path: agent-linux/bin/
 
   # ─────────────────────────────────────────────────────────
   # Crear GitHub Release con binarios y changelog
@@ -101,7 +140,7 @@ jobs:
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [build-and-push, build-agent]
+    needs: [build-and-push, build-agent-windows, build-agent-linux]
     permissions:
       contents: write
 
