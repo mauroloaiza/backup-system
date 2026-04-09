@@ -18,6 +18,7 @@ from app.schemas import (
     ProgressUpdate,
     JobRunOut,
     DashboardStats,
+    HistoryStats, DailyStatPoint,
     LoginRequest, Token, UserOut,
 )
 from app.auth import (
@@ -280,4 +281,62 @@ def dashboard(db: Session = Depends(get_db)):
         bytes_backed_up_total=bytes_total,
         recent_runs=recent,
         running_now=running,
+    )
+
+
+# ── History stats ─────────────────────────────────────────────────────────────
+
+@app.get("/api/v1/stats/history", response_model=HistoryStats, tags=["stats"],
+         dependencies=[Depends(get_current_user)])
+def history_stats(days: int = Query(30, ge=7, le=365), db: Session = Depends(get_db)):
+    """Return per-day aggregated stats for the last N days."""
+    from collections import defaultdict
+
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    runs = db.query(JobRun).filter(JobRun.started_at >= since).all()
+
+    # aggregate by date
+    by_day: dict[str, dict] = defaultdict(lambda: {
+        "total": 0, "completed": 0, "failed": 0, "bytes": 0, "dur_sum": 0.0, "dur_count": 0
+    })
+    for r in runs:
+        d = r.started_at.strftime("%Y-%m-%d")
+        by_day[d]["total"] += 1
+        if r.status == "completed":
+            by_day[d]["completed"] += 1
+        elif r.status == "failed":
+            by_day[d]["failed"] += 1
+        by_day[d]["bytes"] += r.bytes_done or 0
+        if r.duration_seconds:
+            by_day[d]["dur_sum"] += r.duration_seconds
+            by_day[d]["dur_count"] += 1
+
+    # fill all days in range (including zeros)
+    points = []
+    for i in range(days - 1, -1, -1):
+        d = (datetime.now(timezone.utc) - timedelta(days=i)).strftime("%Y-%m-%d")
+        s = by_day.get(d, {"total": 0, "completed": 0, "failed": 0, "bytes": 0, "dur_sum": 0.0, "dur_count": 0})
+        dur_avg = (s["dur_sum"] / s["dur_count"]) if s["dur_count"] > 0 else 0.0
+        points.append(DailyStatPoint(
+            date=d,
+            total=s["total"],
+            completed=s["completed"],
+            failed=s["failed"],
+            bytes=s["bytes"],
+            duration_avg=round(dur_avg, 1),
+        ))
+
+    total_runs = len(runs)
+    completed_runs = sum(1 for r in runs if r.status == "completed")
+    success_rate = round((completed_runs / total_runs * 100) if total_runs > 0 else 0.0, 1)
+    total_bytes = sum(r.bytes_done or 0 for r in runs)
+    all_durations = [r.duration_seconds for r in runs if r.duration_seconds]
+    avg_duration = round(sum(all_durations) / len(all_durations), 1) if all_durations else 0.0
+
+    return HistoryStats(
+        points=points,
+        success_rate=success_rate,
+        avg_duration=avg_duration,
+        total_bytes=total_bytes,
+        total_runs=total_runs,
     )

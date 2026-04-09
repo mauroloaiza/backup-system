@@ -94,6 +94,24 @@ class JobRunOut(BaseModel):
         from_attributes = True
 
 
+# ── History / Stats ───────────────────────────────────────────────────────────
+
+class DailyStatPoint(BaseModel):
+    date: str           # "2026-04-09"
+    total: int
+    completed: int
+    failed: int
+    bytes: int
+    duration_avg: float  # seconds
+
+class HistoryStats(BaseModel):
+    points: list[DailyStatPoint]
+    success_rate: float  # 0-100
+    avg_duration: float  # seconds
+    total_bytes: int
+    total_runs: int
+
+
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
 class DashboardStats(BaseModel):

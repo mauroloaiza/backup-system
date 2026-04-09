@@ -80,3 +80,23 @@ export const fetchJob = (jobId: string) =>
 
 export const updateNodeSourcePaths = (nodeId: string, source_paths: string[]) =>
   api.put<Node>(`/nodes/${nodeId}/source-paths`, { source_paths }).then(r => r.data)
+
+export interface DailyStatPoint {
+  date: string
+  total: number
+  completed: number
+  failed: number
+  bytes: number
+  duration_avg: number
+}
+
+export interface HistoryStats {
+  points: DailyStatPoint[]
+  success_rate: number
+  avg_duration: number
+  total_bytes: number
+  total_runs: number
+}
+
+export const fetchHistory = (days = 30) =>
+  api.get<HistoryStats>('/stats/history', { params: { days } }).then(r => r.data)

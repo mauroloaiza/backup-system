@@ -9,6 +9,38 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
+## [0.5.0] - 2026-04-09
+
+### Added — Agente Linux (`agent-linux/`)
+
+- **Backup de archivos** (`internal/backup/files`): tar+gzip con exclusiones por prefijo/glob y manejo de symlinks. Binario estático `CGO_ENABLED=0` compatible con kernel ≥ 2.6.32.
+- **Backup de bases de datos** (`internal/backup/databases`):
+  - PostgreSQL: `pg_dump -Fc` por base, `PGPASSWORD` via env
+  - MySQL/MariaDB: `mysqldump | gzip` pipeline, `--single-transaction --routines --triggers`
+  - MongoDB: `mongodump --gzip`
+  - Redis: `BGSAVE` + copia de `dump.rdb`
+  - SQLite: `VACUUM INTO` con fallback a copia directa
+  - Elasticsearch: snapshot via REST API
+- **Destinos** (`internal/destination`): local, SFTP (scp/sshpass), S3 (aws cli + endpoint custom), NFS (mount -t nfs), SMB (mount -t cifs)
+- **Reporter** (`internal/reporter`): heartbeat + progreso de jobs al servidor BackupSMC via HTTP (`X-Agent-Token`)
+- **Engine** (`internal/backup/engine`): orquesta todas las fuentes → staging dir en `/tmp` → upload → reporte final (Option B: exits cleanly, muestra comandos útiles)
+- **Service manager** (`internal/service`): instala como systemd unit con fallback automático a SysV init.d; `Install/Uninstall/Start/Stop/Restart/Status`
+- **CLI Cobra** (`cmd/backupsmc-agent`): comandos `setup`, `run`, `status`, `logs`, `service`, `version` — todos con implementación real
+- **Wizard TUI** (`internal/tui/wizard`): asistente de 6 pasos con charmbracelet/huh; copia/pega en token field, prueba de conexión al servidor, selección de destino NFS/SMB/S3/SFTP/local
+- **`install.sh`**: soporta Debian 9+, Ubuntu 18.04+, RHEL/CentOS 6+, AlmaLinux 8+, Rocky 8+, Amazon Linux 2/2023, SUSE 12+, Fedora 32+ — amd64/arm64/arm
+
+### Added — Frontend
+
+- **Página History** (`frontend/src/pages/History.tsx`): estadísticas históricas reales con selector 7/14/30/90 días, gráficos de área (ejecuciones exitosas/fallidas), barras (volumen), tendencia de duración. Para 90 días agrega por semana automáticamente.
+- **Job detail slide-over** (`Jobs.tsx`): clic en cualquier fila abre un panel lateral con detalle completo del job: estado, progreso, nodo, tiempos, volumen (archivos/bytes), mensaje de error si aplica.
+- **StatCards de resumen** en History: tasa de éxito con indicador de color (verde ≥ 95%, ámbar ≥ 80%, rojo < 80%), total respaldado, duración promedio.
+
+### Added — Servidor
+
+- **`GET /api/v1/stats/history?days=N`** (default 30, rango 7–365): agrega `JobRun` por día — `total`, `completed`, `failed`, `bytes`, `duration_avg`. Rellena días sin ejecuciones con ceros.
+
+---
+
 ## [0.4.1] - 2026-04-02
 
 ### Added
