@@ -63,3 +63,9 @@ logs/
 *.key
 *.p12
 *.pfx
+
+# Runtime / build artifacts
+releases/
+server/dashboard/
+server/backupsmc.db
+agent/agent.yaml

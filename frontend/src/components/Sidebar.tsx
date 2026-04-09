@@ -1,4 +1,5 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
+import { useAuth } from '@/store/auth'
 
 const nav = [
   {
@@ -40,6 +41,14 @@ function Icon({ d }: { d: React.ReactNode }) {
 }
 
 export function Sidebar() {
+  const { username, logout } = useAuth()
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
+  }
+
   return (
     <aside className="w-52 min-h-screen bg-sidebar flex flex-col fixed top-0 left-0 bottom-0 z-40 select-none">
 
@@ -89,9 +98,25 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* Version footer */}
-      <div className="px-4 py-3 border-t border-white/5">
-        <p className="text-[10px] text-slate-600">BackupSMC v0.1.0</p>
+      {/* User + logout */}
+      <div className="px-3 py-3 border-t border-white/5">
+        <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg">
+          <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+            <svg className="w-3.5 h-3.5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+          </div>
+          <span className="text-[12px] text-slate-400 font-medium flex-1 truncate">{username}</span>
+          <button
+            onClick={handleLogout}
+            title="Cerrar sesión"
+            className="text-slate-600 hover:text-red-400 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+          </button>
+        </div>
       </div>
     </aside>
   )

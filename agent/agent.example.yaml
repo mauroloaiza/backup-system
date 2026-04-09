@@ -1,30 +1,123 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# BackupSMC Agent — Example Configuration
+# Copy to agent.yaml and adjust for your environment.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Central BackupSMC server connection
 server:
   url: "https://backup.smcsoluciones.com"
-  api_token: "your-api-token-here"
+  api_token: "your-agent-api-token-here"   # matches AGENT_TOKEN in server .env
   timeout: 30s
 
+# ── What to back up ──────────────────────────────────────────────────────────
 backup:
+  # Single source (legacy, still supported)
   source_path: "C:\\Users"
+
+  # Multiple sources — all paths are merged, duplicates removed
+  source_paths:
+    - "C:\\Users"
+    - "D:\\CompanyData"
+
+  # Glob patterns to skip (relative to each source root)
   exclude_patterns:
     - "*.tmp"
     - "*.log"
+    - "~$*"               # Office temp files
     - "Thumbs.db"
     - "desktop.ini"
-    - "$RECYCLE.BIN"
-    - "System Volume Information"
+    - "$RECYCLE.BIN/**"
+    - "System Volume Information/**"
+    - "pagefile.sys"
+    - "hiberfil.sys"
+
+  # AES-256-GCM encryption passphrase — minimum 16 characters, keep it secret
   encryption_passphrase: "change-me-use-a-strong-passphrase-32chars"
+
+  # Use Windows Volume Shadow Copy — allows backing up locked/open files
   use_vss: true
+
+  # Only transfer files that have changed since the last run
   incremental: true
 
+  # How often to run (e.g. 6h, 12h, 24h, 168h)
+  schedule_interval: 24h
+
+  # After writing each file, decrypt + hash it to confirm integrity.
+  # Slower but catches silent storage corruption.
+  verify_after_backup: false
+
+  # Bandwidth cap during backup (0 = unlimited, unit: MB/s)
+  throttle_mbps: 0
+
+  # Shell command to run BEFORE the backup starts.
+  # Non-zero exit aborts the backup. Leave empty to skip.
+  pre_script: ""
+  # Example: pre_script: "net stop SQLWriter"
+
+  # Shell command to run AFTER the backup completes (always, even on failure).
+  # Leave empty to skip.
+  post_script: ""
+  # Example: post_script: "net start SQLWriter"
+
+# ── Where to store backups ────────────────────────────────────────────────────
 destination:
+  # type: local | s3 | sftp
   type: local
+
+  # ── Local ──────────────────────────────────────────────────────────────────
   local_path: "D:\\Backups\\BackupSMC"
 
+  # ── Amazon S3 / compatible (set type: s3) ──────────────────────────────────
+  # s3_bucket: "my-company-backups"
+  # s3_region: "us-east-1"
+  # s3_prefix: "servers/win-srv-01/"   # optional key prefix
+
+  # ── SFTP (set type: sftp) ──────────────────────────────────────────────────
+  # sftp_host: "backup.example.com"
+  # sftp_port: 22
+  # sftp_user: "backupuser"
+  # sftp_path: "/var/backups/win-srv-01"
+  #
+  # Authentication — use key_file (recommended) OR password:
+  # sftp_key_file: "C:\\ProgramData\\BackupSMC\\id_rsa"
+  # sftp_password: "your-sftp-password"
+
+# ── Retention policy ─────────────────────────────────────────────────────────
+retention:
+  # Simple max-age: delete runs older than N days (0 = disabled).
+  # Ignored when GFS is enabled.
+  days: 30
+
+  # Grandfather-Father-Son rotation (recommended for long-term storage).
+  # When enabled, the simple `days` policy above is ignored.
+  gfs:
+    enabled: false
+    keep_daily: 7      # keep one run per day  for the last 7 days
+    keep_weekly: 4     # keep one run per week for the last 4 weeks
+    keep_monthly: 12   # keep one run per month for the last 12 months
+
+# ── Retry on transient errors ─────────────────────────────────────────────────
 retry:
   max_attempts: 3
   initial_delay: 1s
 
+# ── Logging ──────────────────────────────────────────────────────────────────
 log:
-  level: info
-  format: console
-  path: stdout
+  level: info          # debug | info | warn | error
+  format: console      # console (coloured) | json
+  path: stdout         # stdout | path/to/agent.log
+
+# ── Email notifications ───────────────────────────────────────────────────────
+notify:
+  email:
+    enabled: false
+    smtp_host: "smtp.example.com"
+    smtp_port: 587       # 587 = STARTTLS, 465 = TLS, 25 = plain
+    username: "alerts@example.com"
+    password: "smtp-password"
+    from: "backupsmc@example.com"
+    to:
+      - "admin@example.com"
+    on_failure: true    # send alert when backup fails or has warnings
+    on_success: false   # send summary when backup completes cleanly

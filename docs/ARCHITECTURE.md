@@ -1,212 +1,297 @@
-# Arquitectura técnica — BackupSMC
+# Arquitectura técnica — SMC Backup
+
+> Versión: v0.4.1 — 2026-04-02
+
+---
 
 ## Visión general
 
-BackupSMC sigue una arquitectura de **microservicios desacoplados** compuesta por tres componentes principales: el **Servidor** (control plane), el **Agente** (data plane) y el **Frontend** (UI). La comunicación entre ellos se realiza mediante REST API y un protocolo interno agente-servidor.
+SMC Backup sigue una arquitectura de **tres capas desacopladas**: el **Servidor** (control plane), el **Agente** (data plane en cada nodo Windows) y el **Frontend** (UI web). La comunicación entre capas usa REST sobre HTTP con dos canales de autenticación separados.
 
 ---
 
 ## Diagrama de alto nivel
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        CLIENTE / BROWSER                    │
-└───────────────────────┬─────────────────────────────────────┘
-                        │ HTTPS
-┌───────────────────────▼─────────────────────────────────────┐
-│                    FRONTEND (React)                         │
-│  Dashboard · Configuración · Historial · Alertas            │
-└───────────────────────┬─────────────────────────────────────┘
-                        │ REST API (HTTPS)
-┌───────────────────────▼─────────────────────────────────────┐
-│                    SERVER (FastAPI)                         │
-│  ┌─────────────┐  ┌────────────┐  ┌──────────────────────┐ │
-│  │  API REST   │  │  Scheduler │  │  Notification Engine │ │
-│  │  (v1)       │  │  Celery    │  │  Email / Webhook      │ │
-│  └──────┬──────┘  └─────┬──────┘  └──────────────────────┘ │
-│         │               │                                    │
-│  ┌──────▼───────────────▼──────────────────────────────┐   │
-│  │            PostgreSQL  ·  Redis                      │   │
-│  └──────────────────────────────────────────────────────┘   │
-└───────────────────────┬─────────────────────────────────────┘
-                        │ Agent Protocol (HTTPS + token)
-          ┌─────────────┼──────────────┐
-          │             │              │
-┌─────────▼──┐  ┌───────▼────┐  ┌─────▼──────┐
-│  Agent     │  │  Agent     │  │  Agent     │
-│  Nodo 1    │  │  Nodo 2    │  │  Nodo N    │
-│  (Go)      │  │  (Go)      │  │  (Go)      │
-└─────┬──────┘  └────────────┘  └────────────┘
-      │
-      │  Lee fuentes locales:
-      │  DB · Archivos · Docker · VM
-      │
-      ▼
-┌─────────────────────────────────────────────────┐
-│               DESTINOS DE ALMACENAMIENTO        │
-│  Local  ·  S3/MinIO  ·  SFTP  ·  Google Drive  │
-└─────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                     BROWSER / OPERADOR                       │
+└─────────────────────────┬────────────────────────────────────┘
+                          │ HTTPS · JWT Bearer
+┌─────────────────────────▼────────────────────────────────────┐
+│                  FRONTEND (React + Vite)                     │
+│  Login · Dashboard Nodos · source_paths · Historial (WIP)    │
+└─────────────────────────┬────────────────────────────────────┘
+                          │ REST API /api/v1
+┌─────────────────────────▼────────────────────────────────────┐
+│                  SERVER (FastAPI / Python)                    │
+│  ┌───────────────┐  ┌──────────────┐  ┌───────────────────┐  │
+│  │  Auth (JWT)   │  │  Nodes API   │  │   Jobs API        │  │
+│  │  /auth/login  │  │  /nodes/*    │  │   /jobs/*/progress│  │
+│  └───────────────┘  └──────────────┘  └───────────────────┘  │
+│                    SQLite (dev) / PostgreSQL (prod)           │
+└──────────────────┬──────────────┬───────────────────────────┘
+                   │ X-Agent-Token│
+       ┌───────────▼──┐   ┌───────▼───────────┐
+       │  AGENTE Go   │   │   AGENTE Go        │
+       │  Nodo A      │   │   Nodo B           │
+       │  Windows Srv │   │   Windows Srv      │
+       └──────────────┘   └────────────────────┘
+              │
+    ┌─────────▼────────────────────┐
+    │       DESTINO DE BACKUP      │
+    │  Local · S3 · SFTP           │
+    └──────────────────────────────┘
 ```
 
 ---
 
 ## Componentes
 
-### 1. Server (FastAPI)
+### 1. Server — `server/`
 
-**Responsabilidades:**
-- Autenticación y autorización (JWT + API Keys)
-- Gestión de nodos, jobs y políticas de backup
-- Scheduler de jobs (Celery Beat)
-- Registro de historial y logs
-- Motor de notificaciones
-- API REST consumida por el frontend y el agente
+| Item | Detalle |
+|------|---------|
+| Framework | FastAPI |
+| Lenguaje | Python 3.11+ |
+| Base de datos | SQLite (dev) · PostgreSQL (prod) |
+| ORM | SQLAlchemy |
+| Auth web | JWT (python-jose) + sha256_crypt (passlib) |
+| Auth agente | Header `X-Agent-Token` |
+| Configuración | Variables de entorno vía `.env` |
+| Punto de entrada | `uvicorn app.main:app --port 8000` |
 
-**Stack:**
+**Endpoints principales:**
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| POST | `/api/v1/auth/login` | Pública | Login usuario → JWT |
+| POST | `/api/v1/nodes/register` | Agent Token | Registro/heartbeat del agente |
+| PUT | `/api/v1/nodes/{id}/source-paths` | JWT | Actualizar rutas de origen |
+| POST | `/api/v1/jobs/{id}/progress` | Agent Token | Reportar progreso del job |
+
+---
+
+### 2. Agente — `agent/`
+
+| Item | Detalle |
+|------|---------|
+| Lenguaje | Go 1.22+ |
+| Binario | `backupsmc-agent.exe` (20.6 MB, sin dependencias externas) |
+| Instalador | Inno Setup 6 (`BackupSMC-Agent-{version}-Setup.exe`) |
+| Configuración | `agent.yaml` (Viper) |
+| Modo de ejecución | Servicio Windows (SCM) o proceso foreground |
+
+**Pipeline de backup por archivo:**
+
 ```
-Python 3.12
-FastAPI 0.115+
-SQLAlchemy 2.x (async) + Alembic (migraciones)
-Celery 5.x + Redis (broker)
-Pydantic v2 (validación y serialización)
-PostgreSQL 16 (base de datos principal)
+Archivo fuente
+    │
+    ▼ [Throttle reader — token bucket]
+    │
+    ├─── TeeReader → SHA-256 hash (plaintext)
+    │
+    ▼ [Compresión zstd — si la extensión no está en skip list]
+    │
+    ▼ [Cifrado AES-256-GCM — streaming]
+    │
+    ▼ Destino (Local / S3 / SFTP)
+    │
+    └─── [VerifyAfterBackup] → leer de vuelta, descifrar, descomprimir, recomputar hash
 ```
 
-**Estructura interna:**
+**Packages internos:**
+
+| Package | Responsabilidad |
+|---------|----------------|
+| `backup/engine` | Orchestración del job (VSS, scan, backup, manifiesto) |
+| `backup/scanner` | Detección de cambios (mtime + size, caché persistente) |
+| `backup/retention` | GFS + simple days — limpieza post-job |
+| `backup/manifest` | Manifiesto cifrado (JSON + zstd + AES-256-GCM) |
+| `backup/restore` | Restauración por job ID con filtro glob |
+| `backup/vss` | VSS snapshots (Windows only, stub en Linux) |
+| `backup/acl` | SDDL ACL preservación y restauración |
+| `destination/local` | Escritura en disco local |
+| `destination/s3` | AWS SDK v2 |
+| `destination/sftp` | `pkg/sftp` + `golang.org/x/crypto/ssh` |
+| `destination/factory` | Selecciona destino por `cfg.Destination.Type` |
+| `retry` | Backoff exponencial con jitter y errores permanentes |
+| `throttle` | Token bucket reader/writer (stdlib puro) |
+| `notify` | Email SMTP + Windows Event Log |
+| `noderegister` | Registro + heartbeat al servidor |
+| `reporter` | Progreso en tiempo real vía HTTP |
+| `config` | Viper YAML + defaults + validación |
+| `crypto` | AES-256-GCM streaming (encrypt/decrypt) |
+| `compress` | zstd streaming (encode/decode) |
+| `winsvc` | Integración con Windows SCM |
+
+---
+
+### 3. Frontend — `frontend/`
+
+| Item | Detalle |
+|------|---------|
+| Framework | React 18 + Vite |
+| Estilos | Tailwind CSS + shadcn/ui |
+| Estado | Zustand (auth persistente en localStorage) |
+| HTTP | Axios con interceptor 401 |
+| Rutas | React Router v6 con `RequireAuth` wrapper |
+| Puerto dev | `npm run dev` → 5173 (o siguiente disponible) |
+
+---
+
+### 4. GUI Desktop — `gui/`
+
+| Item | Detalle |
+|------|---------|
+| Framework | Wails v2 |
+| Backend | Go |
+| Frontend | React (misma base que el web) |
+| Binario | `BackupSMC.exe` |
+| Nota | `CREATE_NO_WINDOW` en todos los `exec.Command` para evitar parpadeo de CMD |
+
+---
+
+## Autenticación — dos canales
+
 ```
-server/
-└── app/
-    ├── api/           # Routers FastAPI por recurso
-    │   ├── v1/
-    │   │   ├── auth.py
-    │   │   ├── nodes.py
-    │   │   ├── jobs.py
-    │   │   ├── backups.py
-    │   │   ├── destinations.py
-    │   │   └── notifications.py
-    ├── models/        # SQLAlchemy ORM models
-    ├── schemas/       # Pydantic schemas (request/response)
-    ├── services/      # Lógica de negocio
-    ├── tasks/         # Celery tasks
-    ├── core/          # Config, security, dependencies
-    └── main.py
+Browser ──── POST /auth/login {username, password}
+                    │
+                    └─→ JWT Bearer token (header Authorization)
+                         Expira en 24h · sha256_crypt
+
+Agente ────── X-Agent-Token: <api_token>
+                    │
+                    └─→ Validado contra AGENT_TOKEN en .env
+                         Sin expiración · rotación manual
 ```
 
 ---
 
-### 2. Agent (Go)
+## Modelo de datos (SQLite/PostgreSQL)
 
-**Responsabilidades:**
-- Registrarse en el servidor con token único
-- Ejecutar jobs de backup asignados por el servidor
-- Recopilar datos de fuentes locales (DB, archivos, Docker, VM)
-- Comprimir y cifrar los datos antes de transferirlos
-- Transferir al destino configurado vía rclone / SDK nativo
-- Reportar estado y progreso al servidor en tiempo real
+```sql
+users
+  id, username, hashed_password, is_active
 
-**Stack:**
-```
-Go 1.22+
-HTTP client (net/http estándar)
-rclone (librería o CLI integrado)
-mysqldump / pg_dump (syscall)
-Docker SDK (github.com/docker/docker)
-AES-256-GCM (cifrado)
-```
+nodes
+  id, name, hostname, os, agent_version,
+  status, last_seen, source_paths_json
 
-**Flujo del agente:**
-```
-Inicio
-  └─► Registro en servidor (token)
-        └─► Poll de jobs asignados (cada N seg)
-              └─► Ejecutar job
-                    ├─► Conectar fuente
-                    ├─► Dump / tar / snapshot
-                    ├─► Comprimir (gzip/zstd)
-                    ├─► Cifrar (AES-256)
-                    ├─► Transferir a destino
-                    └─► Reportar resultado al servidor
+jobs (pendiente de implementar en BD)
+  id, node_id, status, started_at, finished_at,
+  changed_files, changed_bytes, errors, manifest_path
 ```
 
 ---
 
-### 3. Frontend (React)
+## Configuración del agente (`agent.yaml`)
 
-**Stack:**
-```
-React 18
-Vite 5 (bundler)
-TypeScript
-Tailwind CSS v3
-shadcn/ui (componentes)
-Recharts (gráficas)
-React Query (estado servidor)
-React Router v6
-Zustand (estado global)
-```
+```yaml
+server:
+  url: "http://servidor:8000"
+  api_token: "token-secreto"
 
-**Páginas principales:**
-- `/dashboard` — Resumen general, estado de jobs recientes
-- `/nodes` — Gestión de nodos/agentes
-- `/jobs` — Configuración y listado de jobs de backup
-- `/history` — Historial de ejecuciones con logs
-- `/destinations` — Configurar destinos de almacenamiento
-- `/settings` — Configuración general, notificaciones, usuarios
+backup:
+  source_paths: ["C:\\Users", "D:\\Data"]
+  encryption_passphrase: "passphrase-minimo-16-chars"
+  use_vss: true
+  incremental: true
+  schedule_interval: 24h
+  verify_after_backup: false
+  throttle_mbps: 0
+  pre_script: ""
+  post_script: ""
+
+destination:
+  type: local          # local | s3 | sftp
+  local_path: "D:\\Backups\\BackupSMC"
+
+retention:
+  days: 30
+  gfs:
+    enabled: false
+    keep_daily: 7
+    keep_weekly: 4
+    keep_monthly: 12
+
+retry:
+  max_attempts: 3
+  initial_delay: 1s
+
+notify:
+  email:
+    enabled: false
+    smtp_host: "smtp.empresa.com"
+    smtp_port: 587
+    on_failure: true
+    on_success: false
+```
 
 ---
 
 ## Flujo de un backup completo
 
 ```
-1. Usuario configura un Job (fuente + destino + cron)
-2. Celery Beat dispara el job según el cron
-3. Servidor encola la tarea en Redis
-4. Worker Celery notifica al Agente vía API
-5. Agente ejecuta el backup:
-   a. Conecta a la fuente (DB / archivos / Docker / VM)
-   b. Genera el dump / tar / snapshot
-   c. Comprime con zstd
-   d. Cifra con AES-256-GCM (clave derivada por job)
-   e. Transfiere al destino (Local/S3/SFTP/GDrive)
-6. Agente reporta resultado (exitoso / error + tamaño + duración)
-7. Servidor actualiza historial en PostgreSQL
-8. Servidor envía notificación (email / webhook) si corresponde
-9. Servidor aplica política de retención (elimina backups antiguos)
+1. Scheduler ticker dispara (o `backupsmc-agent run`)
+2. Pre-script (si configurado) — aborta si exit != 0
+3. VSS snapshot por volumen (Windows)
+4. Para cada source_path:
+   a. Carga caché incremental de %ProgramData%\BackupSMC\state\
+   b. Scanner detecta archivos modificados (mtime + size)
+   c. Para cada archivo modificado:
+      - retry.Do() envuelve backupFile()
+      - Throttle → TeeReader (SHA-256) → zstd → AES-256-GCM → destino
+      - Si verify_after_backup: leer de vuelta y comparar hash
+   d. Guarda nueva caché incremental
+5. Escribe manifiesto cifrado (con retry)
+6. Reporta resultado al servidor
+7. Post-script (siempre, incluso en fallo)
+8. runRetention() — aplica GFS o days
+9. Notificación email + Windows Event Log
 ```
 
 ---
 
-## Seguridad
+## Estructura de objetos en el destino
 
-| Aspecto | Implementación |
-|---------|----------------|
-| Autenticación usuarios | JWT (access + refresh token) |
-| Autenticación agentes | API Key por nodo (HMAC-SHA256) |
-| Transporte | HTTPS/TLS en todos los endpoints |
-| Cifrado de backups | AES-256-GCM, clave por job |
-| Clave de cifrado | Derivada de `SECRET_KEY` + `job_id` (PBKDF2) |
-| Contraseñas DB | bcrypt (usuarios) |
-| Secrets | Variables de entorno, nunca en código |
-
----
-
-## Escalabilidad
-
-- Los **workers Celery** pueden escalarse horizontalmente añadiendo réplicas
-- El **agente Go** puede instalarse en N nodos sin límite (según plan)
-- **PostgreSQL** soporta read replicas para escalar lecturas
-- **Redis Cluster** para alta disponibilidad del broker
-- El servidor puede desplegarse detrás de un **load balancer** (nginx/traefik)
+```
+jobs/
+  {job-id}/
+    {timestamp}/
+      manifest.bsmc          ← manifiesto cifrado
+      data/
+        {src-tag}/
+          {rel-path}.bsmc    ← archivo cifrado
+          {rel-path}.part0000.bsmc  ← chunk (archivos >512 MB)
+```
 
 ---
 
-## Decisiones de diseño
+## Dependencias clave (Go)
 
-| Decisión | Alternativas consideradas | Razón de elección |
-|----------|--------------------------|-------------------|
-| Python + FastAPI (backend) | Django, Node.js, Go | Ecosistema maduro para ops, async nativo, OpenAPI auto |
-| Go (agente) | Python agent, Bash | Binario único sin runtime, bajo consumo, fácil distribución |
-| React + shadcn/ui | Vue, Angular, Next.js | Velocidad de desarrollo, componentes headless, Tailwind |
-| Celery + Redis | APScheduler, cron nativo | Cola distribuida, reintentos, visibilidad con Flower |
-| PostgreSQL | SQLite, MySQL | JSONB para metadata flexible, robustez, extensiones |
-| rclone (transferencias) | Implementar propio | Soporte nativo de 40+ providers, battle-tested |
+| Paquete | Uso |
+|---------|-----|
+| `github.com/spf13/cobra` | CLI |
+| `github.com/spf13/viper` | Configuración YAML |
+| `go.uber.org/zap` | Logging estructurado |
+| `github.com/google/uuid` | Job IDs |
+| `github.com/aws/aws-sdk-go-v2` | Destino S3 |
+| `github.com/pkg/sftp` | Destino SFTP |
+| `golang.org/x/crypto/ssh` | SSH para SFTP |
+| `golang.org/x/sys/windows/svc` | Servicio Windows |
+| `github.com/klauspost/compress/zstd` | Compresión |
+| `wails.io/v2` | GUI desktop |
+
+---
+
+## Dependencias clave (Python)
+
+| Paquete | Uso |
+|---------|-----|
+| `fastapi` | Framework REST |
+| `uvicorn` | ASGI server |
+| `sqlalchemy` | ORM |
+| `python-jose[cryptography]` | JWT |
+| `passlib[sha256_crypt]` | Hash de contraseñas |
+| `python-multipart` | Form data |
+| `python-dotenv` | Variables de entorno |

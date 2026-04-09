@@ -6,6 +6,25 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
+# ── Auth ──────────────────────────────────────────────────────────────────────
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+class UserOut(BaseModel):
+    id: int
+    username: str
+    is_active: bool
+
+    class Config:
+        from_attributes = True
+
+
 # ── Node ──────────────────────────────────────────────────────────────────────
 
 class NodeRegister(BaseModel):
@@ -14,6 +33,7 @@ class NodeRegister(BaseModel):
     hostname: str
     os: str = "windows"
     agent_version: str = "0.1.0"
+    source_paths: list[str] = []
 
 class NodeOut(BaseModel):
     id: str
@@ -22,11 +42,15 @@ class NodeOut(BaseModel):
     os: str
     agent_version: str
     status: str
+    source_paths: list[str] = []
     last_seen: datetime
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+class NodeSourcePathsUpdate(BaseModel):
+    source_paths: list[str]
 
 
 # ── Progress (from agent) ─────────────────────────────────────────────────────

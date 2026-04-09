@@ -1,10 +1,10 @@
-# Roadmap — BackupSMC
+# Roadmap — SMC Backup
 
-> Estado actual: **Fase 0 — Fundación** (Q1-Q2 2026)
+> Última actualización: **v0.4.1** — 2026-04-02
 
 ---
 
-## Leyenda de estados
+## Leyenda
 
 | Símbolo | Estado |
 |---------|--------|
@@ -15,161 +15,141 @@
 
 ---
 
-## Fase 0 — Fundación (Q1-Q2 2026)
+## Fase 0 — Fundación ✅ CERRADA (v0.1.0)
 
-> Estructurar el proyecto, definir arquitectura y convenciones de desarrollo.
-
-- ✅ Definir stack tecnológico (FastAPI + Go + React)
+- ✅ Definir stack tecnológico (FastAPI + Go + React + Wails)
 - ✅ Estructurar repositorio y documentación base
 - ✅ Definir modelo de negocio y roadmap
 - ✅ Crear `docker-compose` de desarrollo y producción
 - ✅ Crear archivos de gobernanza (LICENSE, CONTRIBUTING, CODE_OF_CONDUCT)
-- 📋 Configurar repositorio GitHub privado
-- 📋 Configurar CI/CD con GitHub Actions
-- 📋 Definir convenciones de base de datos (modelos y migraciones)
-- 📋 Scaffold inicial del servidor FastAPI
-- 📋 Scaffold inicial del agente Go
-- 📋 Scaffold inicial del frontend React
 
 ---
 
-## Fase 1 — MVP Core (Q2-Q3 2026)
-
-> Primera versión funcional para uso interno en SMC Soluciones.
+## Fase 1 — MVP Core ✅ CERRADA (v0.3.0)
 
 ### Backend
-- 📋 Autenticación: registro, login, JWT (access + refresh)
-- 📋 Gestión de nodos/agentes (registro, listado, estado)
-- 📋 Gestión de jobs de backup (CRUD, cron config)
-- 📋 Ejecución de jobs vía Celery
-- 📋 Historial de ejecuciones y logs
-- 📋 API de destinos: configurar local y S3
-- 📋 Migraciones con Alembic
-- 📋 Tests unitarios y de integración (pytest, cobertura > 70%)
+- ✅ Autenticación JWT (access token) + X-Agent-Token para agentes
+- ✅ Gestión de nodos/agentes (registro, heartbeat, listado, estado)
+- ✅ Gestión de jobs de backup (progreso, historial)
+- ✅ Seed de usuario admin desde variables de entorno
+- ✅ Migración idempotente de columnas (ALTER TABLE sin Alembic)
+- ✅ API REST v1 documentada
 
 ### Agente (Go)
-- 📋 Instalación con un comando (curl | bash)
-- 📋 Registro automático en servidor con token
-- 📋 Backup de MySQL (mysqldump + compresión gzip)
-- 📋 Backup de PostgreSQL (pg_dump + compresión gzip)
-- 📋 Backup de directorios (tar + gzip)
-- 📋 Transferencia a destino local
-- 📋 Transferencia a S3 (boto3/aws-sdk)
-- 📋 Reporte de estado y progreso al servidor
+- ✅ Instalador Inno Setup con wizard de configuración (URL, token, passphrase, rutas, destino, retención)
+- ✅ Registro automático en servidor con token (`X-Agent-Token`)
+- ✅ Heartbeat periódico cada 5 minutos con `source_paths`
+- ✅ Backup de directorios (compresión zstd + cifrado AES-256-GCM)
+- ✅ Backup incremental con caché persistente (`%ProgramData%\BackupSMC\state\`)
+- ✅ Soporte VSS (Volume Shadow Copy) para archivos abiertos
+- ✅ Destino local
+- ✅ Destino S3 / compatible
+- ✅ Reporte de estado y progreso al servidor en tiempo real
 
 ### Frontend
-- 📋 Layout base con sidebar y navegación
-- 📋 Página de login
-- 📋 Dashboard con resumen de estado
-- 📋 Listado y detalle de nodos
-- 📋 Crear y listar jobs de backup
-- 📋 Historial de ejecuciones con logs
+- ✅ Layout base con sidebar y navegación
+- ✅ Página de login (dark theme)
+- ✅ Autenticación persistente (Zustand + localStorage + interceptor 401)
+- ✅ Dashboard con listado de nodos y estado
+- ✅ Gestión de `source_paths` por nodo (agregar / eliminar inline)
+- ✅ Logout con limpieza de token
 
 ### Infraestructura
-- 📋 Pipeline CI: lint + tests en cada PR
-- 📋 Pipeline CD: build y push de imágenes Docker a registry
+- ✅ Docker Compose (dev + producción)
+- ✅ GUI desktop Wails v2 (`BackupSMC.exe`) sin parpadeo de ventana CMD
 
 ---
 
-## Fase 2 — Destinos múltiples (Q3 2026)
+## Fase 2 — Enterprise Agent ✅ CERRADA (v0.4.1)
 
-> Ampliar soporte de destinos de almacenamiento.
+- ✅ Destino SFTP (clave PEM o contraseña)
+- ✅ SHA-256 por archivo — calculado durante backup, almacenado en manifiesto
+- ✅ Verificación post-escritura (`verify_after_backup`) — descifra y recomputa hash
+- ✅ Throttle de ancho de banda — token bucket puro stdlib (`throttle_mbps`)
+- ✅ Pre/post scripts — `cmd.exe /C` en Windows, `sh -c` en Linux
+- ✅ Retención simple por días (`retention.days`)
+- ✅ Retención GFS — Grandfather-Father-Son diario/semanal/mensual
+- ✅ Retry con backoff exponencial — `InitialDelay × 2^intento` ±20% jitter, cap 5 min
+- ✅ Notificaciones email SMTP (STARTTLS/TLS) con plantillas HTML
+- ✅ Windows Event Log — auto-registro de fuente, tipos info/warning/error
+- ✅ Archivos grandes (>512 MB) divididos en chunks cifrados individualmente
+- ✅ ACL de Windows (SDDL) preservadas y restaurables
+- ✅ CLI de restauración (`restore --job-id --target --filter --dry-run`)
 
-- 📋 Destino SFTP (via rclone)
+---
+
+## Fase 3 — Dashboard & UX (Q2 2026) 🔄 En progreso
+
+### Frontend
+- 📋 Página de historial de jobs (tabla con paginación, filtros, estado)
+- 📋 Detalle de job — archivos respaldados, errores, duración, tamaño
+- 📋 Wizard de restauración desde UI (seleccionar job → ruta destino → ejecutar)
+- 📋 Gráfica de tendencias (tamaño acumulado, tasa de éxito) con Recharts
+- 📋 Página de configuración del agente desde UI (editar `source_paths`, destino, retención)
+- 📋 Indicador de estado del agente (online / offline / última vez visto)
+
+### Backend
+- 📋 Endpoint de historial de jobs con paginación
+- 📋 Endpoint de detalle de job (leer manifiesto cifrado)
+- 📋 Endpoint para lanzar restauración remota
+- 📋 WebSocket o SSE para progreso en tiempo real en UI
+
+### Agente
+- 📋 SFTP: soporte `known_hosts` (actualmente `InsecureIgnoreHostKey`)
+- 📋 Retry en heartbeat si el servidor está caído al arrancar
+
+---
+
+## Fase 4 — Multi-destino y Fuentes Avanzadas (Q3 2026)
+
 - 📋 Destino Google Drive (via rclone)
 - 📋 Destino MinIO / Backblaze B2
-- 📋 Interfaz para gestionar múltiples destinos en UI
-- 📋 Prueba de conectividad desde UI antes de guardar destino
-- 📋 Rotación automática de backups según política de retención
-
----
-
-## Fase 3 — Fuentes avanzadas (Q3-Q4 2026)
-
-> Soporte para fuentes más complejas.
-
+- 📋 Destino Azure Blob Storage
+- 📋 Backup de base de datos MySQL (mysqldump + cifrado)
+- 📋 Backup de base de datos PostgreSQL (pg_dump + cifrado)
 - 📋 Backup de volúmenes Docker (pause + tar del volumen)
-- 📋 Listado de contenedores activos desde agente
-- 📋 Backup completo de servidor (tar del filesystem)
-- 📋 Snapshot de VM (integración inicial con libvirt/KVM)
-- 📋 Exclusión de rutas/archivos por patrón (.gitignore style)
-- 📋 Cifrado de backups (AES-256-GCM, clave por job)
+- 📋 Prueba de conectividad desde UI antes de guardar destino
 
 ---
 
-## Fase 4 — Notificaciones y monitoreo (Q4 2026)
+## Fase 5 — Notificaciones Avanzadas (Q3 2026)
 
-> Visibilidad completa del estado del sistema.
-
-- 📋 Notificaciones por email (SMTP configurable)
-- 📋 Notificaciones por webhook (compatible Slack, Teams, Discord)
-- 📋 Alertas por job fallido, espacio bajo, agente desconectado
-- 📋 Dashboard con métricas: tamaño acumulado, tasa de éxito, tendencias
-- 📋 Gráficas de ejecuciones (Recharts)
+- 📋 Notificaciones por webhook (Slack, Teams, Discord)
+- 📋 Alertas por agente desconectado > N horas
+- 📋 Alertas por espacio en destino bajo umbral
 - 📋 Exportar historial a CSV/PDF
+- 📋 Notificaciones WhatsApp (integración SMC Desk)
 
 ---
 
-## Fase 5 — Multi-tenant y usuarios (Q1 2027)
+## Fase 6 — Multi-tenant y Usuarios (Q4 2026)
 
-> Soporte para múltiples organizaciones y gestión de usuarios.
-
-- 📋 Modelo multi-tenant (organizaciones separadas)
-- 📋 Roles y permisos: Admin, Operador, Viewer
+- 📋 Roles: Admin, Operador, Viewer
+- 📋 Múltiples organizaciones (modelo multi-tenant)
 - 📋 Invitación de usuarios por email
-- 📋 Auditoría de acciones (quién hizo qué y cuándo)
-- 📋 2FA (TOTP) para usuarios
+- 📋 Auditoría de acciones
+- 📋 2FA (TOTP)
 
 ---
 
-## Fase 6 — SaaS y On-Premise (Q1-Q2 2027)
-
-> Preparación para lanzamiento comercial.
+## Fase 7 — SaaS y On-Premise (Q1 2027)
 
 - 📋 Portal de billing y suscripciones (Stripe)
 - 📋 Gestión de planes y límites por tenant
-- 📋 Wizard de onboarding para nuevos clientes
-- 📋 Documentación pública (docs.backupsmc.com)
-- 📋 Installer one-click On-Premise (script + Docker)
-- 📋 Portal de licencias On-Premise
+- 📋 Documentación pública
 - 📋 Página web de marketing (backupsmc.com)
+- 📋 Integración con SMC Desk — backup automático desde ticket de recuperación
 
 ---
 
-## Fase 7 — Integraciones y ecosistema (Q2-Q3 2027)
+## Versiones
 
-> Conectar BackupSMC con otras herramientas.
-
-- 📋 Integración con SMC Desk (GLPI): backup automático al crear ticket tipo "recuperación"
-- 📋 API pública v2 para integraciones de terceros
-- 📋 Plugin/webhook para Grafana (métricas)
-- 📋 Integración con Prometheus + Alertmanager
-- 💡 CLI (`backupsmc-cli`) para administración desde terminal
-- 💡 App móvil (React Native) para monitoreo
-- 💡 Marketplace de destinos (plugins de comunidad)
-
----
-
-## Backlog / Ideas futuras
-
-- 💡 Deduplicación de bloques (block-level dedup)
-- 💡 Backup incremental (solo cambios desde último backup)
-- 💡 Verificación automática de backups (restore test)
-- 💡 Disaster Recovery automatizado
-- 💡 Integración con Azure Blob Storage / GCS
-- 💡 Soporte para Windows en el agente
-- 💡 Interfaz de restauración (restore wizard desde UI)
-- 💡 Programar ventanas de mantenimiento (excluir horarios)
-
----
-
-## Versiones planeadas
-
-| Versión | Fase | Fecha estimada |
-|---------|------|----------------|
-| v0.1.0 | Fase 0 completa | Q2 2026 |
-| v0.2.0 | Fase 1 MVP | Q3 2026 |
-| v0.5.0 | Fases 2 + 3 | Q4 2026 |
-| v0.8.0 | Fases 4 + 5 | Q1 2027 |
+| Versión | Fase | Fecha |
+|---------|------|-------|
+| v0.1.0 | Fundación | ✅ 2026-03 |
+| v0.3.0 | MVP Core | ✅ 2026-03 |
+| v0.4.1 | Enterprise Agent | ✅ 2026-04-02 |
+| v0.5.0 | Dashboard & UX | Q2 2026 |
+| v0.7.0 | Fuentes avanzadas | Q3 2026 |
+| v0.9.0 | Multi-tenant | Q4 2026 |
 | v1.0.0 | Lanzamiento SaaS | Q2 2027 |
-| v1.x.x | Fases 7+ | Q3 2027+ |

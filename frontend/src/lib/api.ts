@@ -2,6 +2,19 @@ import axios from 'axios'
 
 export const api = axios.create({ baseURL: '/api/v1' })
 
+// Redirect to login on 401
+api.interceptors.response.use(
+  r => r,
+  err => {
+    if (err.response?.status === 401 && !window.location.pathname.includes('login')) {
+      // Clear stored token and redirect
+      localStorage.removeItem('backupsmc-auth')
+      window.location.href = '/login'
+    }
+    return Promise.reject(err)
+  }
+)
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface Node {
@@ -11,6 +24,7 @@ export interface Node {
   os: string
   agent_version: string
   status: string
+  source_paths: string[]
   last_seen: string
   created_at: string
 }
@@ -63,3 +77,6 @@ export const fetchJobs = (params?: { status?: string; node_id?: string; limit?: 
 
 export const fetchJob = (jobId: string) =>
   api.get<JobRun>(`/jobs/${jobId}`).then(r => r.data)
+
+export const updateNodeSourcePaths = (nodeId: string, source_paths: string[]) =>
+  api.put<Node>(`/nodes/${nodeId}/source-paths`, { source_paths }).then(r => r.data)

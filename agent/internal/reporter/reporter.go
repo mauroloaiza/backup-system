@@ -127,7 +127,7 @@ func (r *Reporter) send(ctx context.Context, p *Progress) {
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+r.apiToken)
+	req.Header.Set("X-Agent-Token", r.apiToken)
 
 	resp, err := r.client.Do(req)
 	if err != nil {

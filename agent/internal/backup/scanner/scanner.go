@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/smcsoluciones/backup-system/agent/internal/config"
 )
 
 // FileInfo holds metadata used to detect changed files.
@@ -148,7 +150,7 @@ func (s *Scanner) Scan() (*ScanResult, *Cache, error) {
 		}
 
 		if !de.IsDir() && s.opts.ComputeHash {
-			h, hashErr := hashFile(path)
+			h, hashErr := hashFile(config.NormalizePath(path))
 			if hashErr == nil {
 				fi.SHA256 = h
 			}

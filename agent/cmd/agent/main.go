@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -14,10 +15,15 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	backup "github.com/smcsoluciones/backup-system/agent/internal/backup"
+	"github.com/smcsoluciones/backup-system/agent/internal/backup/retention"
 	"github.com/smcsoluciones/backup-system/agent/internal/backup/restore"
 	"github.com/smcsoluciones/backup-system/agent/internal/config"
+	"github.com/smcsoluciones/backup-system/agent/internal/destination/factory"
 	"github.com/smcsoluciones/backup-system/agent/internal/destination/local"
+	"github.com/smcsoluciones/backup-system/agent/internal/noderegister"
+	"github.com/smcsoluciones/backup-system/agent/internal/notify"
 	"github.com/smcsoluciones/backup-system/agent/internal/reporter"
+	"github.com/smcsoluciones/backup-system/agent/internal/winsvc"
 )
 
 var (
@@ -26,6 +32,22 @@ var (
 )
 
 func main() {
+	// When launched by Windows SCM, Cobra flag parsing is skipped.
+	// Pre-parse -c / --config from os.Args so setup() finds the right file.
+	if winsvc.IsRunningAsService() {
+		args := os.Args[1:]
+		for i, a := range args {
+			if (a == "-c" || a == "--config") && i+1 < len(args) {
+				cfgFile = args[i+1]
+				break
+			}
+		}
+		if err := runServiceMode(); err != nil {
+			os.Exit(1)
+		}
+		return
+	}
+
 	if err := rootCmd().Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -45,6 +67,11 @@ file systems with VSS (Volume Shadow Copy) support.`,
 
 	root.AddCommand(
 		runCmd(),
+		serviceCmd(),
+		installServiceCmd(),
+		uninstallServiceCmd(),
+		startServiceCmd(),
+		stopServiceCmd(),
 		restoreCmd(),
 		validateCmd(),
 		versionCmd(),
@@ -53,14 +80,14 @@ file systems with VSS (Volume Shadow Copy) support.`,
 	return root
 }
 
-// ── run ────────────────────────────────────────────────────────────────────────
+// ── run ───────────────────────────────────────────────────────────────────────
 
 func runCmd() *cobra.Command {
 	var jobID string
 
 	cmd := &cobra.Command{
 		Use:   "run",
-		Short: "Run a backup job",
+		Short: "Run a single backup job",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, log, err := setup()
 			if err != nil {
@@ -68,68 +95,179 @@ func runCmd() *cobra.Command {
 			}
 			defer log.Sync() //nolint:errcheck
 
-			if jobID == "" {
-				jobID = uuid.New().String()
-			}
-
-			// Destination
-			dest, err := local.New(cfg.Destination.LocalPath)
-			if err != nil {
-				return fmt.Errorf("destination: %w", err)
-			}
-			defer dest.Close()
-
-			// Reporter (rate-limit: 5s between progress POSTs)
-			rep := reporter.New(
-				cfg.Server.URL,
-				cfg.Server.APIToken,
-				5*time.Second,
-				log,
-			)
-			defer rep.Stop()
-
-			engine := backup.New(cfg, dest, rep, log, resolveNodeID())
-
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 			defer cancel()
 
-			// Graceful shutdown on SIGINT/SIGTERM
-			sigs := make(chan os.Signal, 1)
-			signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-			go func() {
-				<-sigs
-				log.Info("received shutdown signal, finishing current file...")
-				cancel()
-			}()
+			return runOnce(ctx, cfg, log, jobID)
+		},
+	}
+	cmd.Flags().StringVar(&jobID, "job-id", "", "job ID (generated if empty)")
+	return cmd
+}
 
-			result, err := engine.Run(ctx, jobID)
+// ── service ───────────────────────────────────────────────────────────────────
+
+func serviceCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "service",
+		Short: "Run as a background service (scheduler loop)",
+		Long:  "Runs the backup agent in scheduler mode — executes backups on the configured interval.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if winsvc.IsRunningAsService() {
+				return runServiceMode()
+			}
+			return runSchedulerLoop()
+		},
+	}
+}
+
+// runSchedulerLoop runs the backup on the configured interval until SIGTERM.
+func runSchedulerLoop() error {
+	cfg, log, err := setup()
+	if err != nil {
+		return err
+	}
+	defer log.Sync() //nolint:errcheck
+
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	interval := cfg.Backup.ScheduleInterval
+	if interval <= 0 {
+		interval = 24 * time.Hour
+	}
+
+	retentionDesc := fmt.Sprintf("%d days", cfg.Retention.Days)
+	if cfg.Retention.GFS.Enabled {
+		retentionDesc = fmt.Sprintf("GFS (daily=%d weekly=%d monthly=%d)",
+			cfg.Retention.GFS.KeepDaily,
+			cfg.Retention.GFS.KeepWeekly,
+			cfg.Retention.GFS.KeepMonthly,
+		)
+	}
+	log.Info("scheduler started",
+		zap.Duration("interval", interval),
+		zap.String("retention", retentionDesc),
+	)
+
+	// Register node + start periodic heartbeat (every 5 min).
+	noderegister.StartHeartbeat(ctx, cfg.Server.URL, cfg.Server.APIToken,
+		resolveNodeID(), cfg.EffectiveSourcePaths())
+
+	// Run immediately on start.
+	if err := runOnce(ctx, cfg, log, ""); err != nil {
+		log.Error("backup run failed", zap.Error(err))
+	}
+	runRetention(cfg, log)
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Info("scheduler stopped")
+			return nil
+		case <-ticker.C:
+			if err := runOnce(ctx, cfg, log, ""); err != nil {
+				log.Error("scheduled backup failed", zap.Error(err))
+			}
+			runRetention(cfg, log)
+		}
+	}
+}
+
+// runServiceMode wraps the scheduler loop inside the Windows SCM handler.
+func runServiceMode() error {
+	_, log, err := setup()
+	if err != nil {
+		return err
+	}
+	defer log.Sync() //nolint:errcheck
+
+	_, cancel := context.WithCancel(context.Background())
+
+	handler := &winsvc.Handler{
+		Run:  func() error { return runSchedulerLoop() },
+		Stop: cancel,
+	}
+	return winsvc.RunAsService(handler)
+}
+
+// ── install-service ───────────────────────────────────────────────────────────
+
+func installServiceCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "install-service",
+		Short: "Install BackupSMC as a Windows service (run as Administrator)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			exePath, err := os.Executable()
 			if err != nil {
-				log.Error("backup failed", zap.Error(err))
+				return fmt.Errorf("cannot determine exe path: %w", err)
+			}
+			exePath, _ = filepath.Abs(exePath)
+
+			cfgAbs := cfgFile
+			if cfgAbs == "" {
+				cfgAbs = filepath.Join(filepath.Dir(exePath), "agent.yaml")
+			}
+			cfgAbs, _ = filepath.Abs(cfgAbs)
+
+			if err := winsvc.Install(exePath, cfgAbs); err != nil {
 				return err
 			}
-
-			log.Info("backup finished",
-				zap.String("job_id", result.JobID),
-				zap.Int64("changed_files", result.ChangedFiles),
-				zap.Int64("changed_bytes", result.ChangedBytes),
-				zap.Int("errors", len(result.Errors)),
-				zap.String("manifest", result.ManifestPath),
-				zap.Duration("duration", result.FinishedAt.Sub(result.StartedAt)),
-			)
-
-			if len(result.Errors) > 0 {
-				log.Warn("backup completed with errors")
-				for _, e := range result.Errors {
-					log.Warn("  " + e)
-				}
-			}
-
+			fmt.Printf("✓ Service %q installed\n", winsvc.ServiceName)
+			fmt.Printf("  Binary : %s\n", exePath)
+			fmt.Printf("  Config : %s\n", cfgAbs)
+			fmt.Println("\nStart it with:")
+			fmt.Printf("  backupsmc-agent.exe start-service\n")
+			fmt.Printf("  — or —\n")
+			fmt.Printf("  sc start %s\n", winsvc.ServiceName)
 			return nil
 		},
 	}
+}
 
-	cmd.Flags().StringVar(&jobID, "job-id", "", "job ID (generated if empty)")
-	return cmd
+func uninstallServiceCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "uninstall-service",
+		Short: "Remove the BackupSMC Windows service (run as Administrator)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := winsvc.Uninstall(); err != nil {
+				return err
+			}
+			fmt.Printf("✓ Service %q removed\n", winsvc.ServiceName)
+			return nil
+		},
+	}
+}
+
+func startServiceCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "start-service",
+		Short: "Start the BackupSMC Windows service",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := winsvc.Start(); err != nil {
+				return err
+			}
+			fmt.Printf("✓ Service %q started\n", winsvc.ServiceName)
+			return nil
+		},
+	}
+}
+
+func stopServiceCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "stop-service",
+		Short: "Stop the BackupSMC Windows service",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := winsvc.Stop(); err != nil {
+				return err
+			}
+			fmt.Printf("✓ Service %q stopped\n", winsvc.ServiceName)
+			return nil
+		},
+	}
 }
 
 // ── restore ───────────────────────────────────────────────────────────────────
@@ -148,13 +286,8 @@ func restoreCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "restore",
 		Short: "Restore files from a backup job",
-		Example: `  # Restore all files from a job
-  backupsmc-agent restore -c agent.yaml --job-id <id> --target C:\Restore
-
-  # Restore only files matching a pattern
+		Example: `  backupsmc-agent restore -c agent.yaml --job-id <id> --target C:\Restore
   backupsmc-agent restore -c agent.yaml --job-id <id> --target C:\Restore --filter "docs/*"
-
-  # Preview what would be restored (no writes)
   backupsmc-agent restore -c agent.yaml --job-id <id> --target C:\Restore --dry-run`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, log, err := setup()
@@ -163,7 +296,6 @@ func restoreCmd() *cobra.Command {
 			}
 			defer log.Sync() //nolint:errcheck
 
-			// Passphrase: flag > config
 			if passphrase == "" {
 				passphrase = cfg.Backup.EncryptionPassphrase
 			}
@@ -174,16 +306,8 @@ func restoreCmd() *cobra.Command {
 			}
 			defer dest.Close()
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 			defer cancel()
-
-			sigs := make(chan os.Signal, 1)
-			signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-			go func() {
-				<-sigs
-				log.Info("received shutdown signal...")
-				cancel()
-			}()
 
 			engine := restore.New(dest, log)
 			result, err := engine.Run(ctx, restore.Options{
@@ -196,41 +320,37 @@ func restoreCmd() *cobra.Command {
 				RestoreACLs:       restoreACL,
 			})
 			if err != nil {
-				log.Error("restore failed", zap.Error(err))
 				return err
 			}
 
+			prefix := ""
 			if dryRun {
-				fmt.Printf("\n[DRY RUN] Would restore %d file(s) from job %s\n", result.RestoredFiles, result.JobID)
-			} else {
-				fmt.Printf("\nRestore complete: %d restored, %d skipped, %d errors — %.2fs\n",
-					result.RestoredFiles,
-					result.SkippedFiles,
-					result.ErrorFiles,
-					result.FinishedAt.Sub(result.StartedAt).Seconds(),
-				)
+				prefix = "[DRY RUN] "
 			}
-
+			fmt.Printf("\n%sRestore: %d restaurados, %d omitidos, %d errores — %.2fs\n",
+				prefix, result.RestoredFiles, result.SkippedFiles, result.ErrorFiles,
+				result.FinishedAt.Sub(result.StartedAt).Seconds(),
+			)
 			if result.ErrorFiles > 0 {
-				return fmt.Errorf("%d file(s) failed to restore", result.ErrorFiles)
+				return fmt.Errorf("%d archivo(s) no se pudieron restaurar", result.ErrorFiles)
 			}
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVar(&jobID, "job-id", "", "job ID to restore (required)")
-	cmd.Flags().StringVar(&targetPath, "target", "", "target directory for restored files (required)")
-	cmd.Flags().StringVar(&passphrase, "passphrase", "", "decryption passphrase (default: from config)")
-	cmd.Flags().StringVar(&filter, "filter", "", "glob pattern to restore a subset (e.g. 'docs/*')")
-	cmd.Flags().BoolVar(&overwrite, "overwrite", false, "overwrite existing files at target")
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "list files that would be restored without writing")
-	cmd.Flags().BoolVar(&restoreACL, "restore-acl", true, "restore Windows ACLs from backup (Windows only)")
+	cmd.Flags().StringVar(&jobID, "job-id", "", "job ID a restaurar (requerido)")
+	cmd.Flags().StringVar(&targetPath, "target", "", "directorio destino (requerido)")
+	cmd.Flags().StringVar(&passphrase, "passphrase", "", "passphrase de descifrado (default: desde config)")
+	cmd.Flags().StringVar(&filter, "filter", "", "patrón glob para restaurar subconjunto (ej. 'docs/*')")
+	cmd.Flags().BoolVar(&overwrite, "overwrite", false, "sobreescribir archivos existentes")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "listar qué se restauraría sin escribir nada")
+	cmd.Flags().BoolVar(&restoreACL, "restore-acl", true, "restaurar ACLs de Windows")
 	_ = cmd.MarkFlagRequired("job-id")
 	_ = cmd.MarkFlagRequired("target")
 	return cmd
 }
 
-// ── validate ──────────────────────────────────────────────────────────────────
+// ── validate / version ────────────────────────────────────────────────────────
 
 func validateCmd() *cobra.Command {
 	return &cobra.Command{
@@ -242,16 +362,40 @@ func validateCmd() *cobra.Command {
 				return err
 			}
 			if err := cfg.Validate(); err != nil {
-				fmt.Fprintf(os.Stderr, "Configuration invalid:\n  %v\n", err)
+				fmt.Fprintf(os.Stderr, "Configuración inválida:\n  %v\n", err)
 				return err
 			}
-			fmt.Println("Configuration is valid.")
+			fmt.Println("✓ Configuración válida")
+			for i, p := range cfg.EffectiveSourcePaths() {
+				if i == 0 {
+					fmt.Printf("  Fuente       : %s\n", p)
+				} else {
+					fmt.Printf("               + %s\n", p)
+				}
+			}
+			destLabel := cfg.Destination.LocalPath
+			if cfg.Destination.Type == "s3" {
+				destLabel = "s3://" + cfg.Destination.S3Bucket + "/" + cfg.Destination.S3Prefix
+			}
+			fmt.Printf("  Destino      : %s (%s)\n", destLabel, cfg.Destination.Type)
+			fmt.Printf("  Intervalo    : %s\n", cfg.Backup.ScheduleInterval)
+			if cfg.Retention.GFS.Enabled {
+				fmt.Printf("  Retención    : GFS (daily=%d weekly=%d monthly=%d)\n",
+					cfg.Retention.GFS.KeepDaily,
+					cfg.Retention.GFS.KeepWeekly,
+					cfg.Retention.GFS.KeepMonthly,
+				)
+			} else {
+				fmt.Printf("  Retención    : %d días\n", cfg.Retention.Days)
+			}
+			fmt.Printf("  VSS          : %v\n", cfg.Backup.UseVSS)
+			fmt.Printf("  Incremental  : %v\n", cfg.Backup.Incremental)
+			fmt.Printf("  Throttle     : %.1f MB/s\n", cfg.Backup.ThrottleMbps)
+			fmt.Printf("  Verify       : %v\n", cfg.Backup.VerifyAfterBackup)
 			return nil
 		},
 	}
 }
-
-// ── version ───────────────────────────────────────────────────────────────────
 
 func versionCmd() *cobra.Command {
 	return &cobra.Command{
@@ -259,11 +403,98 @@ func versionCmd() *cobra.Command {
 		Short: "Print agent version",
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Println("BackupSMC Agent v0.1.0")
+			fmt.Println("SMC Soluciones — https://smcsoluciones.com")
 		},
 	}
 }
 
-// ── helpers ───────────────────────────────────────────────────────────────────
+// ── internal helpers ──────────────────────────────────────────────────────────
+
+func runOnce(ctx context.Context, cfg *config.Config, log *zap.Logger, jobID string) error {
+	if jobID == "" {
+		jobID = uuid.New().String()
+	}
+
+	dest, err := factory.New(cfg)
+	if err != nil {
+		return fmt.Errorf("destination: %w", err)
+	}
+	defer dest.Close()
+
+	rep := reporter.New(cfg.Server.URL, cfg.Server.APIToken, 5*time.Second, log)
+	defer rep.Stop()
+
+	notifier := notify.New(cfg.Notify, log)
+
+	engine := backup.New(cfg, dest, rep, log, resolveNodeID())
+	result, err := engine.Run(ctx, jobID)
+
+	if err != nil {
+		notify.WriteEventLog("error", fmt.Sprintf("Backup FAILED job=%s: %v", jobID, err))
+		notifier.Notify(notify.BackupEvent{
+			JobID:     jobID,
+			NodeID:    resolveNodeID(),
+			Status:    "failed",
+			Errors:    []string{err.Error()},
+			StartedAt: time.Now().UTC(),
+		})
+		return err
+	}
+
+	status := "completed"
+	if len(result.Errors) > 0 {
+		status = "warning"
+	}
+
+	evtMsg := fmt.Sprintf("Backup %s job=%s files=%d bytes=%d duration=%s",
+		status, result.JobID, result.ChangedFiles, result.ChangedBytes,
+		result.FinishedAt.Sub(result.StartedAt).Round(time.Second))
+	evtType := "info"
+	if status == "warning" {
+		evtType = "warning"
+	}
+	notify.WriteEventLog(evtType, evtMsg)
+
+	notifier.Notify(notify.BackupEvent{
+		JobID:        result.JobID,
+		NodeID:       resolveNodeID(),
+		Status:       status,
+		ChangedFiles: result.ChangedFiles,
+		ChangedBytes: result.ChangedBytes,
+		TotalFiles:   result.TotalFiles,
+		Duration:     result.FinishedAt.Sub(result.StartedAt),
+		Errors:       result.Errors,
+		StartedAt:    result.StartedAt,
+	})
+
+	log.Info("backup finished",
+		zap.String("job_id", result.JobID),
+		zap.Int64("changed_files", result.ChangedFiles),
+		zap.Int64("changed_bytes", result.ChangedBytes),
+		zap.Int("errors", len(result.Errors)),
+		zap.String("manifest", result.ManifestPath),
+		zap.Duration("duration", result.FinishedAt.Sub(result.StartedAt)),
+	)
+	for _, e := range result.Errors {
+		log.Warn("  " + e)
+	}
+	return nil
+}
+
+func runRetention(cfg *config.Config, log *zap.Logger) {
+	if !cfg.Retention.GFS.Enabled && cfg.Retention.Days <= 0 {
+		return
+	}
+	dest, err := factory.New(cfg)
+	if err != nil {
+		log.Warn("retention: open destination", zap.Error(err))
+		return
+	}
+	defer dest.Close()
+	if err := retention.Apply(dest, cfg.Retention, log); err != nil {
+		log.Warn("retention: apply policy", zap.Error(err))
+	}
+}
 
 func setup() (*config.Config, *zap.Logger, error) {
 	cfg, err := config.Load(cfgFile)
@@ -273,20 +504,16 @@ func setup() (*config.Config, *zap.Logger, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, nil, fmt.Errorf("config validate: %w", err)
 	}
-
 	log, err := buildLogger(cfg.Log)
 	if err != nil {
 		return nil, nil, fmt.Errorf("logger: %w", err)
 	}
-
 	return cfg, log, nil
 }
 
 func buildLogger(lc config.LogConfig) (*zap.Logger, error) {
 	level := zap.InfoLevel
-	if err := level.UnmarshalText([]byte(lc.Level)); err != nil {
-		level = zap.InfoLevel
-	}
+	_ = level.UnmarshalText([]byte(lc.Level))
 
 	encoderCfg := zap.NewProductionEncoderConfig()
 	encoderCfg.TimeKey = "ts"
@@ -311,8 +538,7 @@ func buildLogger(lc config.LogConfig) (*zap.Logger, error) {
 		sink = zapcore.AddSync(os.Stdout)
 	}
 
-	core := zapcore.NewCore(enc, sink, level)
-	return zap.New(core, zap.AddCaller()), nil
+	return zap.New(zapcore.NewCore(enc, sink, level), zap.AddCaller()), nil
 }
 
 func resolveNodeID() string {

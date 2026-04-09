@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy import String, Integer, BigInteger, Boolean, DateTime, Text, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
+import json
 
 
 def utcnow():
@@ -22,10 +23,36 @@ class Node(Base):
     agent_version: Mapped[str] = mapped_column(String(32), default="0.1.0")
     status: Mapped[str] = mapped_column(String(16), default="online")  # online|offline|error
     api_token: Mapped[str] = mapped_column(String(128), nullable=True)
+    # JSON-encoded list of source paths reported by the agent
+    source_paths_json: Mapped[str] = mapped_column(Text, nullable=True)
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     runs: Mapped[list["JobRun"]] = relationship("JobRun", back_populates="node")
+
+    @property
+    def source_paths(self) -> list[str]:
+        if not self.source_paths_json:
+            return []
+        try:
+            return json.loads(self.source_paths_json)
+        except Exception:
+            return []
+
+    @source_paths.setter
+    def source_paths(self, paths: list[str]):
+        self.source_paths_json = json.dumps(paths)
+
+
+class User(Base):
+    """Web dashboard user."""
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    hashed_password: Mapped[str] = mapped_column(String(255))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class JobRun(Base):
