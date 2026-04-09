@@ -6,7 +6,9 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
+	"github.com/mauroloaiza/backup-system/agent-linux/internal/backup/engine"
 	"github.com/mauroloaiza/backup-system/agent-linux/internal/config"
+	"github.com/mauroloaiza/backup-system/agent-linux/internal/service"
 	"github.com/mauroloaiza/backup-system/agent-linux/internal/tui/wizard"
 )
 
@@ -65,6 +67,15 @@ func cmdSetup() *cobra.Command {
 				return fmt.Errorf("guardar config: %w", err)
 			}
 
+			// install as system service if schedule is enabled
+			if cfg.Schedule.Enabled {
+				bin, _ := os.Executable()
+				if svcErr := service.Install(bin, cfgPath); svcErr != nil {
+					fmt.Printf("  %s servicio: %v (puedes instalarlo luego con: backupsmc-agent service install)\n",
+						dimStyle.Render("!"), svcErr)
+				}
+			}
+
 			printFinalScreen(cfg, cfgPath)
 			return nil
 		},
@@ -109,10 +120,7 @@ func cmdRun() *cobra.Command {
 				return fmt.Errorf("cargar config: %w", err)
 			}
 			fmt.Printf("  Iniciando backup desde %s...\n", cfgPath)
-			_ = cfg
-			// TODO: engine.Run(cfg)
-			fmt.Println(okStyle.Render("  Backup completado"))
-			return nil
+			return engine.Run(cfg)
 		},
 	}
 	cmd.Flags().StringVar(&cfgPath, "config", config.DefaultConfigPath, "ruta del archivo de configuracion")
@@ -175,10 +183,13 @@ func cmdService() *cobra.Command {
 	svc.AddCommand(
 		&cobra.Command{
 			Use:   "install",
-			Short: "Instalar servicio systemd",
+			Short: "Instalar servicio systemd / init.d",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				// TODO: service.Install()
-				fmt.Println(okStyle.Render("  Servicio instalado"))
+				bin, _ := os.Executable()
+				if err := service.Install(bin, config.DefaultConfigPath); err != nil {
+					return err
+				}
+				fmt.Println(okStyle.Render("  Servicio instalado y activo"))
 				return nil
 			},
 		},
@@ -186,6 +197,9 @@ func cmdService() *cobra.Command {
 			Use:   "uninstall",
 			Short: "Desinstalar servicio",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				if err := service.Uninstall(); err != nil {
+					return err
+				}
 				fmt.Println(okStyle.Render("  Servicio desinstalado"))
 				return nil
 			},
@@ -194,24 +208,21 @@ func cmdService() *cobra.Command {
 			Use:   "start",
 			Short: "Iniciar servicio",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				fmt.Println(okStyle.Render("  Servicio iniciado"))
-				return nil
+				return service.Start()
 			},
 		},
 		&cobra.Command{
 			Use:   "stop",
 			Short: "Detener servicio",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				fmt.Println(okStyle.Render("  Servicio detenido"))
-				return nil
+				return service.Stop()
 			},
 		},
 		&cobra.Command{
 			Use:   "restart",
 			Short: "Reiniciar servicio",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				fmt.Println(okStyle.Render("  Servicio reiniciado"))
-				return nil
+				return service.Restart()
 			},
 		},
 	)
