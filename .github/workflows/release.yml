@@ -1,9 +1,12 @@
 name: Release
 
+# Deshabilitado — los binarios se publican manualmente con scripts/publish-agent.sh
+# Para reactivar: descomentar el bloque on:
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  workflow_dispatch:  # solo manual desde GitHub UI
+#  push:
+#    tags:
+#      - "v*.*.*"
 
 env:
   REGISTRY: ghcr.io

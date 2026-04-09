@@ -118,6 +118,8 @@ services:
       - "3000:80"
     depends_on:
       - server
+    volumes:
+      - downloads_data:/usr/share/nginx/downloads:ro
     networks:
       - backupsmc
 
@@ -128,6 +130,7 @@ volumes:
   db_data:
   redis_data:
   backups_data:
+  downloads_data:
 
 # -----------------------------------------------------------
 # Redes

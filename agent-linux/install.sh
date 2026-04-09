@@ -3,10 +3,9 @@
 # Usage: curl -fsSL https://raw.githubusercontent.com/mauroloaiza/backup-system/main/agent-linux/install.sh | sh
 set -e
 
-VERSION="0.5.0"
 BINARY_NAME="backupsmc-agent"
 INSTALL_DIR="/usr/local/bin"
-RELEASES_URL="https://github.com/mauroloaiza/backup-system/releases/download/v${VERSION}"
+DOWNLOADS_URL="https://backupsmc.smcsoluciones.com/downloads"
 
 # ── colors ────────────────────────────────────────────────────────────────────
 if [ -t 1 ]; then
@@ -101,7 +100,7 @@ case "$ARCH" in
 esac
 
 BINARY_FILE="${BINARY_NAME}-linux-${ARCH_SUFFIX}"
-DOWNLOAD_URL="${RELEASES_URL}/${BINARY_FILE}"
+DOWNLOAD_URL="${DOWNLOADS_URL}/${BINARY_FILE}"
 
 # ── download ──────────────────────────────────────────────────────────────────
 step "Descargando ${BINARY_FILE}..."
@@ -132,8 +131,5 @@ fi
 
 # ── done ──────────────────────────────────────────────────────────────────────
 printf "\n${BOLD}  Listo!${RESET}\n\n"
-printf "  Para configurar el agente ejecuta:\n\n"
-printf "    ${BOLD}backupsmc-agent setup${RESET}\n\n"
-printf "  Sistemas soportados:\n"
-printf "    Debian 9+, Ubuntu 18.04+, RHEL/CentOS 6+, AlmaLinux 8+,\n"
-printf "    Rocky Linux 8+, Amazon Linux 2/2023, SUSE 12+, Fedora 32+\n\n"
+printf "  Configura el agente ejecutando:\n\n"
+printf "    ${BOLD}sudo backupsmc-agent setup${RESET}\n\n"
