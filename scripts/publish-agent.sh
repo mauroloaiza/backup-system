@@ -20,6 +20,7 @@ VERSION=$(grep '^var version' "$AGENT_DIR/cmd/backupsmc-agent/main.go" | grep -o
 PROD_HOST="admin@ec2-52-1-71-173.compute-1.amazonaws.com"
 PROD_KEY="/home/sysadmin/.ssh/prod.pem"
 PROD_DOWNLOADS_PATH="/var/lib/docker/volumes/backupsmc_downloads_data/_data"
+PROD_DIR="/opt/backupsmc"
 
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RESET='\033[0m'; BOLD='\033[1m'
 

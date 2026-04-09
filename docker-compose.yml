@@ -56,8 +56,9 @@ services:
     container_name: backupsmc-server
     restart: unless-stopped
     env_file: .env
-    ports:
-      - "${API_PORT:-8000}:8000"
+    # Puerto solo interno — nginx hace proxy desde el frontend
+    expose:
+      - "8000"
     depends_on:
       db:
         condition: service_healthy
@@ -115,7 +116,7 @@ services:
     container_name: backupsmc-frontend
     restart: unless-stopped
     ports:
-      - "3000:80"
+      - "3100:80"   # puerto distinto a SMC Desk (3000)
     depends_on:
       - server
     volumes:
