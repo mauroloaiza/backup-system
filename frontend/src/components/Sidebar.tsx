@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/store/auth'
+import { AntIcon } from '@/components/AntMascot'
 
 const nav = [
   {
@@ -55,15 +56,18 @@ export function Sidebar() {
       {/* Logo */}
       <div className="px-4 py-5 flex items-center gap-2.5">
         <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
-          <svg className="w-[18px] h-[18px] text-white" fill="none" viewBox="0 0 24 24"
-            stroke="currentColor" strokeWidth={2.2}>
-            <path strokeLinecap="round" strokeLinejoin="round"
-              d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" />
-          </svg>
+          <AntIcon className="w-[22px] h-[22px] text-white" title="BackupSMC" />
         </div>
-        <div>
-          <div className="font-bold text-white text-sm leading-tight">BackupSMC</div>
-          <div className="text-[10px] text-blue-400/70">Soporte IT</div>
+        <div className="flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="font-bold text-white text-sm leading-tight">BackupSMC</span>
+            {import.meta.env.VITE_INSTANCE_TAG && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-500/90 text-white tracking-wider">
+                {import.meta.env.VITE_INSTANCE_TAG}
+              </span>
+            )}
+          </div>
+          <div className="text-[10px] text-blue-400/70">Respaldo empresarial</div>
         </div>
       </div>
 

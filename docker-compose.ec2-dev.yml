@@ -1,0 +1,75 @@
+version: "3.9"
+
+# =============================================================
+# BackupSMC — Deploy en EC2 compartido (instancia DEV)
+# Project: backupsmc-dev
+# Puerto externo: 3100
+# Postgres interno (no expuesto al host)
+# =============================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: backupsmc-dev-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-backupsmc}
+      POSTGRES_USER: ${POSTGRES_USER:-backupsmc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-backupsmc} -d ${POSTGRES_DB:-backupsmc}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backupsmc-dev
+
+  server:
+    image: backupsmc-dev-server:latest
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: backupsmc-dev-server
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Forces the server to talk to the internal postgres (.env DATABASE_URL is used as fallback).
+      DATABASE_URL: ${DATABASE_URL}
+      # Path to the legacy SQLite file (if present) for first-boot data import.
+      SQLITE_LEGACY_PATH: /var/backups/backupsmc/backupsmc.db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose:
+      - "8000"
+    volumes:
+      - backups_data:/var/backups/backupsmc
+    networks:
+      - backupsmc-dev
+
+  frontend:
+    image: backupsmc-dev-frontend:latest
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: backupsmc-dev-frontend
+    restart: unless-stopped
+    ports:
+      - "3100:80"
+    depends_on:
+      - server
+    volumes:
+      - downloads_data:/usr/share/nginx/downloads:ro
+    networks:
+      - backupsmc-dev
+
+volumes:
+  backups_data:
+  downloads_data:
+  postgres_data:
+
+networks:
+  backupsmc-dev:
+    driver: bridge

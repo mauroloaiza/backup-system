@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/store/auth'
+import { AntIcon, AntMascot } from '@/components/AntMascot'
 
 export function Login() {
   const login = useAuth(s => s.login)
@@ -30,11 +31,7 @@ export function Login() {
         {/* Logo */}
         <div className="flex items-center gap-3 justify-center mb-8">
           <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24"
-              stroke="currentColor" strokeWidth={2.2}>
-              <path strokeLinecap="round" strokeLinejoin="round"
-                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" />
-            </svg>
+            <AntIcon className="w-6 h-6 text-white" title="BackupSMC" />
           </div>
           <div>
             <div className="font-bold text-white text-lg leading-tight">BackupSMC</div>
@@ -44,8 +41,16 @@ export function Login() {
 
         {/* Card */}
         <div className="bg-[#141b2d] rounded-2xl border border-white/5 p-8">
-          <h2 className="text-white font-semibold text-lg mb-1">Iniciar sesión</h2>
-          <p className="text-[#8b9ab4] text-sm mb-6">Ingresa tus credenciales para continuar</p>
+          {/* Mascot — full color, carrying a backup disk */}
+          <div className="flex justify-center -mt-16 mb-4">
+            <div className="w-24 h-20 bg-[#1c2540] rounded-2xl border border-white/5 flex items-center justify-center
+                            shadow-lg shadow-black/20">
+              <AntMascot className="w-20 h-16" title="Tita — la hormiga de BackupSMC" />
+            </div>
+          </div>
+
+          <h2 className="text-white font-semibold text-lg mb-1 text-center">Iniciar sesión</h2>
+          <p className="text-[#8b9ab4] text-sm mb-6 text-center">Tita está lista para cargar tus respaldos</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

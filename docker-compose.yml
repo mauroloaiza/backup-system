@@ -1,141 +1,47 @@
 version: "3.9"
 
 # =============================================================
-# BackupSMC — Docker Compose (Producción)
+# BackupSMC — Deploy en EC2 compartido (instancia DEV)
+# Project: backupsmc-dev
+# Puerto externo: 3100
 # =============================================================
 
 services:
-
-  # -----------------------------------------------------------
-  # Base de datos
-  # -----------------------------------------------------------
-  db:
-    image: postgres:16-alpine
-    container_name: backupsmc-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - backupsmc
-
-  # -----------------------------------------------------------
-  # Redis (broker + cache)
-  # -----------------------------------------------------------
-  redis:
-    image: redis:7-alpine
-    container_name: backupsmc-redis
-    restart: unless-stopped
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - backupsmc
-
-  # -----------------------------------------------------------
-  # Servidor API (FastAPI)
-  # -----------------------------------------------------------
   server:
-    image: backupsmc-server:latest
+    image: backupsmc-dev-server:latest
     build:
       context: ./server
       dockerfile: Dockerfile
-    container_name: backupsmc-server
+    container_name: backupsmc-dev-server
     restart: unless-stopped
     env_file: .env
-    # Puerto solo interno — nginx hace proxy desde el frontend
     expose:
       - "8000"
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     volumes:
       - backups_data:/var/backups/backupsmc
     networks:
-      - backupsmc
+      - backupsmc-dev
 
-  # -----------------------------------------------------------
-  # Worker Celery
-  # -----------------------------------------------------------
-  worker:
-    image: backupsmc-server:latest
-    container_name: backupsmc-worker
-    restart: unless-stopped
-    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=4
-    env_file: .env
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - backups_data:/var/backups/backupsmc
-    networks:
-      - backupsmc
-
-  # -----------------------------------------------------------
-  # Celery Beat (scheduler)
-  # -----------------------------------------------------------
-  beat:
-    image: backupsmc-server:latest
-    container_name: backupsmc-beat
-    restart: unless-stopped
-    command: celery -A app.tasks.celery_app beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
-    env_file: .env
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - backupsmc
-
-  # -----------------------------------------------------------
-  # Frontend (React)
-  # -----------------------------------------------------------
   frontend:
-    image: backupsmc-frontend:latest
+    image: backupsmc-dev-frontend:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: backupsmc-frontend
+    container_name: backupsmc-dev-frontend
     restart: unless-stopped
     ports:
-      - "3100:80"   # puerto distinto a SMC Desk (3000)
+      - "3100:80"
     depends_on:
       - server
     volumes:
       - downloads_data:/usr/share/nginx/downloads:ro
     networks:
-      - backupsmc
+      - backupsmc-dev
 
-# -----------------------------------------------------------
-# Volúmenes
-# -----------------------------------------------------------
 volumes:
-  db_data:
-  redis_data:
   backups_data:
   downloads_data:
 
-# -----------------------------------------------------------
-# Redes
-# -----------------------------------------------------------
 networks:
-  backupsmc:
+  backupsmc-dev:
     driver: bridge

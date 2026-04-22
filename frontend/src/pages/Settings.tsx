@@ -3,7 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   fetchSettings, updateSettings,
   fetchTokens, createToken, revokeToken,
-  type AgentToken,
+  fetchMailSettings, updateMailSettings, testMailSettings,
+  sendDailySummaryTest,
+  type AgentToken, type EmailSettings as EmailSettingsDTO,
 } from '@/lib/api'
 import { fmtDate } from '@/lib/utils'
 
@@ -18,6 +20,7 @@ export function Settings() {
         <div className="space-y-4">
           <ServerInfoCard />
           <NotificationsCard />
+          <MailSettingsCard />
         </div>
         <AgentTokensCard />
       </div>
@@ -289,6 +292,204 @@ function AgentTokensCard() {
     </div>
   )
 }
+
+// ── SMTP / Mail Settings ──────────────────────────────────────────────────────
+
+const PROVIDERS: { value: EmailSettingsDTO['outbound_provider']; label: string }[] = [
+  { value: 'smtp',      label: 'SMTP genérico' },
+  { value: 'office365', label: 'Office 365' },
+]
+
+function MailSettingsCard() {
+  const qc = useQueryClient()
+  const { data } = useQuery({ queryKey: ['mail-settings'], queryFn: fetchMailSettings })
+  const [draft, setDraft] = useState<Partial<EmailSettingsDTO> | null>(null)
+  const [testTo, setTestTo] = useState('')
+  const [testMsg, setTestMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
+
+  const mutation = useMutation({
+    mutationFn: updateMailSettings,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['mail-settings'] })
+      setDraft(null)
+    },
+  })
+
+  const testMutation = useMutation({
+    mutationFn: (to: string) => testMailSettings(to || undefined),
+    onSuccess: (r) => setTestMsg({ kind: 'ok', text: `Correo enviado a ${r.sent_to}` }),
+    onError: (e: any) => setTestMsg({ kind: 'err', text: e.response?.data?.detail || e.message || 'Error' }),
+  })
+
+  const dailyMutation = useMutation({
+    mutationFn: (to: string) => sendDailySummaryTest(to || undefined),
+    onSuccess: (r) => setTestMsg({
+      kind: 'ok',
+      text: r.sent_to
+        ? `Resumen diario enviado a ${r.sent_to} · ${r.summary?.runs ?? 0} runs / ${r.summary?.failed ?? 0} fallos`
+        : 'Resumen diario enviado',
+    }),
+    onError: (e: any) => setTestMsg({ kind: 'err', text: e.response?.data?.detail || e.message || 'Error' }),
+  })
+
+  if (!data) return null
+
+  const cur: Partial<EmailSettingsDTO> = { ...data, ...(draft ?? {}) }
+  const dirty = draft !== null
+  const isO365 = cur.outbound_provider === 'office365'
+
+  const set = (patch: Partial<EmailSettingsDTO>) => setDraft(d => ({ ...(d ?? {}), ...patch }))
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+          <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+          Servidor SMTP
+        </h3>
+        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+          data.configured ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'
+        }`}>
+          {data.configured ? 'Configurado' : 'Sin configurar'}
+        </span>
+      </div>
+
+      <div className="space-y-3">
+        {/* Provider */}
+        <FieldRow label="Proveedor">
+          <select
+            value={cur.outbound_provider ?? 'smtp'}
+            onChange={e => set({ outbound_provider: e.target.value as EmailSettingsDTO['outbound_provider'] })}
+            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-primary bg-white"
+          >
+            {PROVIDERS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+          </select>
+        </FieldRow>
+
+        <FieldRow label="From (nombre)">
+          <input type="text" value={cur.from_name ?? ''} onChange={e => set({ from_name: e.target.value })}
+            placeholder="BackupSMC" className={inputCls} />
+        </FieldRow>
+
+        <FieldRow label="From (email)">
+          <input type="email" value={cur.from_email ?? ''} onChange={e => set({ from_email: e.target.value })}
+            placeholder="backups@empresa.com" className={inputCls} />
+        </FieldRow>
+
+        {!isO365 && (
+          <>
+            <FieldRow label="Host">
+              <input type="text" value={cur.smtp_host ?? ''} onChange={e => set({ smtp_host: e.target.value })}
+                placeholder="smtp.gmail.com" className={inputCls} />
+            </FieldRow>
+            <div className="grid grid-cols-2 gap-2">
+              <FieldRow label="Puerto">
+                <input type="number" value={cur.smtp_port ?? 587}
+                  onChange={e => set({ smtp_port: parseInt(e.target.value) || 587 })}
+                  className={inputCls} />
+              </FieldRow>
+              <FieldRow label="SSL (465)">
+                <button
+                  onClick={() => set({ smtp_secure: !cur.smtp_secure })}
+                  className={`w-10 h-5 rounded-full transition-colors relative ${cur.smtp_secure ? 'bg-primary' : 'bg-gray-200'}`}
+                >
+                  <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                    cur.smtp_secure ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                </button>
+              </FieldRow>
+            </div>
+          </>
+        )}
+
+        <FieldRow label="Usuario">
+          <input type="text" value={cur.smtp_user ?? ''} onChange={e => set({ smtp_user: e.target.value })}
+            placeholder="backups@empresa.com" className={inputCls} />
+        </FieldRow>
+
+        <FieldRow label="Contraseña">
+          <input type="password" value={cur.smtp_pass ?? ''}
+            onChange={e => set({ smtp_pass: e.target.value })}
+            placeholder={data.smtp_pass ? '•••••••• (oculto)' : 'app password'}
+            className={inputCls} />
+        </FieldRow>
+
+        {/* Save bar */}
+        <div className="flex items-center gap-2 pt-2">
+          <button
+            onClick={() => mutation.mutate(draft ?? {})}
+            disabled={!dirty || mutation.isPending}
+            className="text-xs bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-[#3451d1] disabled:opacity-50 transition-colors"
+          >
+            {mutation.isPending ? 'Guardando…' : 'Guardar'}
+          </button>
+          {dirty && (
+            <button onClick={() => setDraft(null)}
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+              Cancelar
+            </button>
+          )}
+          {mutation.isError && (
+            <span className="text-xs text-red-500">Error al guardar</span>
+          )}
+        </div>
+
+        {/* Test */}
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">
+            Probar configuración
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={testTo}
+              onChange={e => setTestTo(e.target.value)}
+              placeholder="tu@correo.com (opcional)"
+              className="flex-1 text-xs border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-primary"
+            />
+            <button
+              onClick={() => { setTestMsg(null); testMutation.mutate(testTo) }}
+              disabled={!data.configured || testMutation.isPending}
+              title={!data.configured ? 'Guarda primero la configuración' : 'Enviar correo de prueba'}
+              className="text-xs bg-gray-700 text-white px-3 py-1.5 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
+            >
+              {testMutation.isPending ? 'Enviando…' : 'Enviar prueba'}
+            </button>
+            <button
+              onClick={() => { setTestMsg(null); dailyMutation.mutate(testTo) }}
+              disabled={!data.configured || dailyMutation.isPending}
+              title={!data.configured ? 'Guarda primero la configuración' : 'Enviar resumen diario ahora'}
+              className="text-xs bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-[#3451d1] disabled:opacity-50 transition-colors whitespace-nowrap"
+            >
+              {dailyMutation.isPending ? 'Generando…' : 'Resumen diario'}
+            </button>
+          </div>
+          <p className="text-[10px] text-gray-400 mt-1.5">
+            El resumen diario se envía automáticamente cada día a las 07:00 UTC si la opción está activa.
+          </p>
+          {testMsg && (
+            <p className={`text-[11px] mt-2 ${testMsg.kind === 'ok' ? 'text-green-600' : 'text-red-500'}`}>
+              {testMsg.kind === 'ok' ? '✓ ' : '✕ '}{testMsg.text}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const inputCls = 'w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-primary'
+
+function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-1">{label}</label>
+      {children}
+    </div>
+  )
+}
+
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 

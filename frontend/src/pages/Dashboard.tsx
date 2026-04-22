@@ -1,24 +1,19 @@
 import { useQuery } from '@tanstack/react-query'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { format, subDays } from 'date-fns'
-import { fetchDashboard, type JobRun } from '@/lib/api'
+import { format, parseISO } from 'date-fns'
+import { fetchDashboard, fetchHistory, type DailyStatPoint } from '@/lib/api'
 import { StatCard } from '@/components/StatCard'
 import { Badge } from '@/components/Badge'
 import { fmtBytes, fmtDuration, fmtDate, fmtShortId } from '@/lib/utils'
 
-// Generate placeholder chart data from actual run history
-function buildChartData(runs: JobRun[]) {
-  return Array.from({ length: 14 }, (_, i) => {
-    const d = subDays(new Date(), 13 - i)
-    const day = format(d, 'yyyy-MM-dd')
-    const dayRuns = runs.filter(r => r.started_at.startsWith(day))
-    return {
-      date: format(d, 'd MMM', { locale: undefined }),
-      total: dayRuns.length,
-      exitosos: dayRuns.filter(r => r.status === 'completed').length,
-      fallidos: dayRuns.filter(r => r.status === 'failed').length,
-    }
-  })
+// Transform history points (full server-side aggregation) into chart rows.
+function buildChartData(points: DailyStatPoint[]) {
+  return points.map(p => ({
+    date: format(parseISO(p.date), 'd MMM'),
+    total: p.total,
+    exitosos: p.completed,
+    fallidos: p.failed,
+  }))
 }
 
 export function Dashboard() {
@@ -28,27 +23,24 @@ export function Dashboard() {
     refetchInterval: 10_000,
   })
 
+  // Chart data from proper server-side aggregation (not capped recent_runs).
+  const { data: history } = useQuery({
+    queryKey: ['history', 14],
+    queryFn: () => fetchHistory(14),
+    refetchInterval: 60_000,
+  })
+
   if (isLoading) return <Loading />
   if (error || !data) return <Error />
 
-  const chartData = buildChartData(data.recent_runs)
+  const chartData = history ? buildChartData(history.points) : []
 
   return (
     <div className="p-6 space-y-5">
       {/* Page title */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-800">Dashboard</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Resumen general del sistema</p>
-        </div>
-        <button className="flex items-center gap-1.5 text-sm text-gray-500 border border-gray-200
-          rounded-lg px-3 py-1.5 bg-white hover:bg-gray-50 transition-colors">
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round"
-              d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-          </svg>
-          Personalizar
-        </button>
+      <div>
+        <h1 className="text-xl font-bold text-gray-800">Dashboard</h1>
+        <p className="text-sm text-gray-400 mt-0.5">Resumen general del sistema</p>
       </div>
 
       {/* Stat cards row 1 */}

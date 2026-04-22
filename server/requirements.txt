@@ -2,9 +2,10 @@
 fastapi==0.115.0
 uvicorn[standard]==0.32.0
 
-# Database — sync SQLite for dev, swap DATABASE_URL for PostgreSQL in prod
+# Database — PostgreSQL in prod, SQLite as fallback via DATABASE_URL
 sqlalchemy==2.0.36
 alembic==1.14.0
+psycopg2-binary==2.9.10
 
 # Validation
 pydantic==2.10.0
@@ -28,3 +29,4 @@ httpx==0.28.0
 python-dotenv==1.0.1
 tenacity==9.0.0
 croniter==3.0.0
+apscheduler==3.10.4

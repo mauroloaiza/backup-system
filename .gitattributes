@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.exe binary
+*.ico binary
+*.png binary
+*.jpg binary
+*.bmp binary
+agent-linux/backupsmc-agent binary

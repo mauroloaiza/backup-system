@@ -6,7 +6,8 @@ const config: Record<string, { label: string; cls: string; dot?: string }> = {
   failed:    { label: 'Fallido',      cls: 'bg-red-50 text-red-600 border border-red-200' },
   warning:   { label: 'Advertencia', cls: 'bg-amber-50 text-amber-700 border border-amber-200' },
   online:    { label: 'Online',       cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200', dot: 'bg-emerald-500' },
-  offline:   { label: 'Offline',      cls: 'bg-slate-100 text-slate-500 border border-slate-200' },
+  stale:     { label: 'Intermitente', cls: 'bg-amber-50 text-amber-700 border border-amber-200', dot: 'bg-amber-500' },
+  offline:   { label: 'Offline',      cls: 'bg-slate-100 text-slate-500 border border-slate-200', dot: 'bg-slate-400' },
 }
 
 export function Badge({ status }: BadgeProps) {

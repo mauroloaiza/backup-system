@@ -18,6 +18,7 @@ import (
 	"github.com/smcsoluciones/backup-system/agent/internal/backup/retention"
 	"github.com/smcsoluciones/backup-system/agent/internal/backup/restore"
 	"github.com/smcsoluciones/backup-system/agent/internal/config"
+	"github.com/smcsoluciones/backup-system/agent/internal/configsync"
 	"github.com/smcsoluciones/backup-system/agent/internal/destination/factory"
 	"github.com/smcsoluciones/backup-system/agent/internal/destination/local"
 	"github.com/smcsoluciones/backup-system/agent/internal/noderegister"
@@ -152,7 +153,15 @@ func runSchedulerLoop() error {
 
 	// Register node + start periodic heartbeat (every 5 min).
 	noderegister.StartHeartbeat(ctx, cfg.Server.URL, cfg.Server.APIToken,
-		resolveNodeID(), cfg.EffectiveSourcePaths())
+		resolveNodeID(), cfg.EffectiveSourcePaths(),
+		noderegister.BuildDestinations(cfg.Destination))
+
+	// Start remote config syncer (polls /nodes/{id}/config/pull every 60s).
+	// Mutations to cfg happen under the Syncer's lock; subsequent backup
+	// runs see the updated values on the next tick.
+	syncer := configsync.New(cfg.Server.URL, cfg.Server.APIToken,
+		resolveNodeID(), resolvedConfigPath(), cfg, log)
+	syncer.Start(ctx)
 
 	// Run immediately on start.
 	if err := runOnce(ctx, cfg, log, ""); err != nil {
@@ -539,6 +548,32 @@ func buildLogger(lc config.LogConfig) (*zap.Logger, error) {
 	}
 
 	return zap.New(zapcore.NewCore(enc, sink, level), zap.AddCaller()), nil
+}
+
+// resolvedConfigPath returns an absolute path to the agent.yaml in use, or ""
+// if running purely from defaults / env (no file to write back to).
+func resolvedConfigPath() string {
+	if cfgFile != "" {
+		if abs, err := filepath.Abs(cfgFile); err == nil {
+			return abs
+		}
+		return cfgFile
+	}
+	// Match the search order in config.Load()
+	candidates := []string{
+		"agent.yaml",
+		filepath.Join(os.Getenv("HOME"), ".backupsmc", "agent.yaml"),
+		"/etc/backupsmc/agent.yaml",
+	}
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			if abs, err := filepath.Abs(p); err == nil {
+				return abs
+			}
+			return p
+		}
+	}
+	return ""
 }
 
 func resolveNodeID() string {
