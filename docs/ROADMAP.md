@@ -1,6 +1,6 @@
 # Roadmap — SMC Backup
 
-> Última actualización: **v0.4.1** — 2026-04-02
+> Última actualización: **v0.10.0** — 2026-04-20
 
 ---
 
@@ -78,25 +78,26 @@
 
 ---
 
-## Fase 3 — Dashboard & UX (Q2 2026) 🔄 En progreso
+## Fase 3 — Dashboard & UX 🔄 En progreso (mayoría cerrada v0.5.0 → v0.9.0)
 
 ### Frontend
-- 📋 Página de historial de jobs (tabla con paginación, filtros, estado)
-- 📋 Detalle de job — archivos respaldados, errores, duración, tamaño
+- ✅ Página de historial de jobs (tabla con paginación, filtros, estado) — v0.5.0
+- ✅ Detalle de job — archivos respaldados, errores, duración, tamaño (slideover) — v0.5.0
 - 📋 Wizard de restauración desde UI (seleccionar job → ruta destino → ejecutar)
-- 📋 Gráfica de tendencias (tamaño acumulado, tasa de éxito) con Recharts
-- 📋 Página de configuración del agente desde UI (editar `source_paths`, destino, retención)
-- 📋 Indicador de estado del agente (online / offline / última vez visto)
+- ✅ Gráfica de tendencias (tamaño acumulado, tasa de éxito) con Recharts — v0.5.0
+- ✅ Página de configuración del agente desde UI (editar `source_paths`, destino, retención) — v0.9.0 (Agent Config Editor remoto vía polling `/config/pull`)
+- ✅ Indicador de estado del agente (online / stale / offline / última vez visto) — v0.6.0
 
 ### Backend
-- 📋 Endpoint de historial de jobs con paginación
-- 📋 Endpoint de detalle de job (leer manifiesto cifrado)
+- ✅ Endpoint de historial de jobs con paginación — v0.5.0 (`/api/v1/stats/history`)
+- ✅ Endpoint de detalle de job (leer manifiesto cifrado) — v0.5.0
 - 📋 Endpoint para lanzar restauración remota
 - 📋 WebSocket o SSE para progreso en tiempo real en UI
 
 ### Agente
 - 📋 SFTP: soporte `known_hosts` (actualmente `InsecureIgnoreHostKey`)
-- 📋 Retry en heartbeat si el servidor está caído al arrancar
+- ✅ Retry en heartbeat si el servidor está caído al arrancar
+- ✅ Polling de configuración remota (`/config/pull`) — agente v0.2.0 (v0.8.0)
 
 ---
 
@@ -105,8 +106,8 @@
 - 📋 Destino Google Drive (via rclone)
 - 📋 Destino MinIO / Backblaze B2
 - 📋 Destino Azure Blob Storage
-- 📋 Backup de base de datos MySQL (mysqldump + cifrado)
-- 📋 Backup de base de datos PostgreSQL (pg_dump + cifrado)
+- ✅ Backup de base de datos MySQL (mysqldump + cifrado) — agent-linux v0.5.0
+- ✅ Backup de base de datos PostgreSQL (pg_dump + cifrado) — agent-linux v0.5.0
 - 📋 Backup de volúmenes Docker (pause + tar del volumen)
 - 📋 Prueba de conectividad desde UI antes de guardar destino
 
@@ -114,8 +115,10 @@
 
 ## Fase 5 — Notificaciones Avanzadas (Q3 2026)
 
+- ✅ Notificaciones in-app (centro de notificaciones + badge) — v0.6.0
+- ✅ Resumen diario por email (APScheduler BackgroundScheduler) — v0.7.0
+- ✅ Alertas por agente desconectado > N horas (stale badge) — v0.6.0
 - 📋 Notificaciones por webhook (Slack, Teams, Discord)
-- 📋 Alertas por agente desconectado > N horas
 - 📋 Alertas por espacio en destino bajo umbral
 - 📋 Exportar historial a CSV/PDF
 - 📋 Notificaciones WhatsApp (integración SMC Desk)
@@ -142,6 +145,14 @@
 
 ---
 
+## Infraestructura & Operación (cerrado v0.10.0)
+
+- ✅ Deploy EC2 DEV con docker-compose (`/opt/backupsmc-dev`) — v0.6.0
+- ✅ Migración de SQLite a PostgreSQL con `bootstrap_migrate.py` — v0.10.0
+- ✅ Destinos persistidos como `destinations_json` en nodos — v0.8.0
+
+---
+
 ## Versiones
 
 | Versión | Fase | Fecha |
@@ -149,7 +160,12 @@
 | v0.1.0 | Fundación | ✅ 2026-03 |
 | v0.3.0 | MVP Core | ✅ 2026-03 |
 | v0.4.1 | Enterprise Agent | ✅ 2026-04-02 |
-| v0.5.0 | Dashboard & UX | Q2 2026 |
-| v0.7.0 | Fuentes avanzadas | Q3 2026 |
-| v0.9.0 | Multi-tenant | Q4 2026 |
-| v1.0.0 | Lanzamiento SaaS | Q2 2027 |
+| v0.5.0 | agent-linux + History/Charts + Job detail | ✅ 2026-04-09 |
+| v0.6.0 | Notificaciones in-app + estado stale + EC2 DEV | ✅ 2026-04-19 |
+| v0.7.0 | Resumen diario por email (APScheduler) | ✅ 2026-04-19 |
+| v0.8.0 | Destinos reales + `destinations_json` + agente 0.2.0 | ✅ 2026-04-19 |
+| v0.9.0 | Agent Config Editor remoto (polling) | ✅ 2026-04-20 |
+| v0.10.0 | Migración PostgreSQL | ✅ 2026-04-20 |
+| v0.11.0 | Restore wizard UI + endpoint remoto | 📋 Q2 2026 |
+| v0.12.0 | WebSocket/SSE de progreso + SFTP `known_hosts` | 📋 Q2 2026 |
+| v1.0.0 | Lanzamiento SaaS | 📋 Q2 2027 |
