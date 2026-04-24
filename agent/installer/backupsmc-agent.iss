@@ -113,7 +113,9 @@ var
 // ---------------------------------------------------------------------------
 function IsExistingInstall: Boolean;
 begin
-  Result := FileExists(ExpandConstant('{app}\{#DefaultCfg}'));
+  // WizardDirValue() returns the currently selected install dir — safe to call
+  // from InitializeWizard (unlike {app} which requires install to have started).
+  Result := FileExists(WizardDirValue() + '\{#DefaultCfg}');
 end;
 
 procedure InitializeWizard;
@@ -146,7 +148,7 @@ begin
   RetentionPage.Add('Retention: keep backups for N days (0 = keep forever):', False);
   RetentionPage.Add('Throttle upload speed in MB/s (0 = unlimited):', False);
 
-  RetentionPage.Values[0] := ExpandConstant('{app}\backups');
+  RetentionPage.Values[0] := WizardDirValue() + '\backups';
   RetentionPage.Values[1] := '30';
   RetentionPage.Values[2] := '0';
 end;
