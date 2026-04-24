@@ -98,228 +98,52 @@ Filename: "{app}\{#AppExeName}"; Parameters: "uninstall-service";  Flags: runhid
 
 [Code]
 // ---------------------------------------------------------------------------
-// Wizard pages for server configuration.
-// Collected values are written to agent.yaml during installation.
-// On upgrades (agent.yaml already exists) these pages are skipped.
+// Generates a template agent.yaml on fresh install (skipped on upgrade).
+// All configuration is done after install via the BackupSMC web UI or by
+// editing the yaml directly.
 // ---------------------------------------------------------------------------
 
+procedure WriteConfigTemplate;
 var
-  ServerPage:     TInputQueryWizardPage;
-  RetentionPage:  TInputQueryWizardPage;
-  IsUpgrade:      Boolean;
-
-// ---------------------------------------------------------------------------
-// Detect upgrade: if agent.yaml already exists we skip the config wizard.
-// ---------------------------------------------------------------------------
-function IsExistingInstall: Boolean;
-begin
-  // WizardDirValue() returns the currently selected install dir — safe to call
-  // from InitializeWizard (unlike {app} which requires install to have started).
-  Result := FileExists(WizardDirValue() + '\{#DefaultCfg}');
-end;
-
-procedure InitializeWizard;
-begin
-  IsUpgrade := IsExistingInstall;
-
-  // ── Page 1: Server + credentials ─────────────────────────────────────────
-  ServerPage := CreateInputQueryPage(wpSelectDir,
-    'BackupSMC Server Configuration',
-    'Enter your BackupSMC server connection details.',
-    'These values will be written to agent.yaml. You can change them later by editing that file.'
-  );
-  ServerPage.Add('Server URL (e.g. http://192.168.1.10:8000):', False);
-  ServerPage.Add('Agent API Token:', False);
-  ServerPage.Add('Encryption Passphrase (min. 16 characters):', True);
-  ServerPage.Add('Source paths to backup (comma-separated, e.g. C:\Users,D:\Data):', False);
-
-  ServerPage.Values[0] := 'http://localhost:8000';
-  ServerPage.Values[1] := '';
-  ServerPage.Values[2] := '';
-  ServerPage.Values[3] := 'C:\Users';
-
-  // ── Page 2: Retention + destination ──────────────────────────────────────
-  RetentionPage := CreateInputQueryPage(ServerPage.ID,
-    'Destination & Retention',
-    'Configure where backups are stored and how long to keep them.',
-    ''
-  );
-  RetentionPage.Add('Local backup destination path (e.g. D:\Backups\BackupSMC):', False);
-  RetentionPage.Add('Retention: keep backups for N days (0 = keep forever):', False);
-  RetentionPage.Add('Throttle upload speed in MB/s (0 = unlimited):', False);
-
-  RetentionPage.Values[0] := WizardDirValue() + '\backups';
-  RetentionPage.Values[1] := '30';
-  RetentionPage.Values[2] := '0';
-end;
-
-// ---------------------------------------------------------------------------
-// Hide config pages on upgrade; validate inputs otherwise.
-// ---------------------------------------------------------------------------
-function ShouldSkipPage(PageID: Integer): Boolean;
-begin
-  Result := False;
-  // Skip both config pages when upgrading (agent.yaml already exists).
-  if IsUpgrade then
-  begin
-    if (PageID = ServerPage.ID) or (PageID = RetentionPage.ID) then
-      Result := True;
-  end;
-end;
-
-function NextButtonClick(CurPageID: Integer): Boolean;
-var
-  Passphrase, ServerURL: String;
-  RetDays: Integer;
-begin
-  Result := True;
-
-  if CurPageID = ServerPage.ID then
-  begin
-    ServerURL  := Trim(ServerPage.Values[0]);
-    Passphrase := ServerPage.Values[2];
-
-    if ServerURL = '' then
-    begin
-      MsgBox('Server URL is required.', mbError, MB_OK);
-      Result := False;
-      Exit;
-    end;
-    if Length(Passphrase) < 16 then
-    begin
-      MsgBox('The encryption passphrase must be at least 16 characters long.', mbError, MB_OK);
-      Result := False;
-      Exit;
-    end;
-  end;
-
-  if CurPageID = RetentionPage.ID then
-  begin
-    RetDays := StrToIntDef(Trim(RetentionPage.Values[1]), -1);
-    if RetDays < 0 then
-    begin
-      MsgBox('Retention days must be a number (0 or greater).', mbError, MB_OK);
-      Result := False;
-      Exit;
-    end;
-    if Trim(RetentionPage.Values[0]) = '' then
-    begin
-      MsgBox('Local destination path is required.', mbError, MB_OK);
-      Result := False;
-      Exit;
-    end;
-  end;
-end;
-
-// ---------------------------------------------------------------------------
-// Manual string split (Inno Setup has no built-in SplitString).
-// ---------------------------------------------------------------------------
-function SplitByComma(S: String): TArrayOfString;
-var
-  Start, I, Count: Integer;
-begin
-  Count := 1;
-  for I := 1 to Length(S) do
-    if S[I] = ',' then
-      Inc(Count);
-
-  SetArrayLength(Result, Count);
-  Start := 1;
-  Count := 0;
-  for I := 1 to Length(S) do
-  begin
-    if S[I] = ',' then
-    begin
-      Result[Count] := Trim(Copy(S, Start, I - Start));
-      Start := I + 1;
-      Inc(Count);
-    end;
-  end;
-  Result[Count] := Trim(Copy(S, Start, Length(S) - Start + 1));
-end;
-
-// ---------------------------------------------------------------------------
-// Build source_paths YAML block from comma-separated input.
-// ---------------------------------------------------------------------------
-function BuildSourcePathsYAML(Input: String): String;
-var
-  Parts: TArrayOfString;
-  i:     Integer;
-  Yaml:  String;
-begin
-  Yaml := '  source_paths:' + #13#10;
-  if Trim(Input) = '' then
-    Input := 'C:\Users';
-
-  Parts := SplitByComma(Input);
-  for i := 0 to GetArrayLength(Parts) - 1 do
-  begin
-    if Parts[i] <> '' then
-      Yaml := Yaml + '    - "' + Parts[i] + '"' + #13#10;
-  end;
-  Result := Yaml;
-end;
-
-// ---------------------------------------------------------------------------
-// Write agent.yaml to {app}. Only called on fresh installs (not upgrades).
-// ---------------------------------------------------------------------------
-procedure WriteConfigFile;
-var
-  CfgPath:    String;
-  Content:    String;
-  ServerURL:  String;
-  APIToken:   String;
-  Passphrase: String;
-  DestPath:   String;
-  RetDays:    String;
-  Throttle:   String;
+  CfgPath: String;
+  Content: String;
 begin
   CfgPath := ExpandConstant('{app}\{#DefaultCfg}');
 
-  // Preserve existing config on upgrade.
+  // Never overwrite an existing config (upgrade path).
   if FileExists(CfgPath) then Exit;
 
-  ServerURL  := Trim(ServerPage.Values[0]);
-  APIToken   := Trim(ServerPage.Values[1]);
-  Passphrase := ServerPage.Values[2];
-  DestPath   := Trim(RetentionPage.Values[0]);
-  RetDays    := Trim(RetentionPage.Values[1]);
-  Throttle   := Trim(RetentionPage.Values[2]);
-
-  if RetDays    = '' then RetDays   := '30';
-  if Throttle   = '' then Throttle  := '0';
-  if DestPath   = '' then DestPath  := ExpandConstant('{app}\backups');
-
   Content :=
-    '# BackupSMC Agent Configuration — generated by installer v{#AppVersion}' + #13#10 +
-    '# Edit this file to change settings; then restart the service.' + #13#10 +
+    '# BackupSMC Agent Configuration — v{#AppVersion}' + #13#10 +
+    '# Configure server URL and token via the BackupSMC web interface,' + #13#10 +
+    '# or edit this file directly and restart the service.' + #13#10 +
     '' + #13#10 +
     'server:' + #13#10 +
-    '  url: "' + ServerURL + '"' + #13#10 +
-    '  api_token: "' + APIToken + '"' + #13#10 +
+    '  url: "http://localhost:8000"   # CHANGE: URL of your BackupSMC server' + #13#10 +
+    '  api_token: ""                  # CHANGE: paste the agent token from the web UI' + #13#10 +
     '  timeout: 30s' + #13#10 +
     '' + #13#10 +
     'backup:' + #13#10 +
-    BuildSourcePathsYAML(ServerPage.Values[3]) +
+    '  source_paths: []               # Configure via web UI or add paths here' + #13#10 +
     '  exclude_patterns:' + #13#10 +
     '    - "*.tmp"' + #13#10 +
     '    - "*.log"' + #13#10 +
     '    - "$RECYCLE.BIN/**"' + #13#10 +
     '    - "System Volume Information/**"' + #13#10 +
     '    - "pagefile.sys"' + #13#10 +
-    '  encryption_passphrase: "' + Passphrase + '"' + #13#10 +
+    '  encryption_passphrase: ""      # CHANGE: min. 16 characters, keep it safe' + #13#10 +
     '  use_vss: true' + #13#10 +
     '  incremental: true' + #13#10 +
     '  schedule_interval: 24h' + #13#10 +
     '  verify_after_backup: false' + #13#10 +
-    '  throttle_mbps: ' + Throttle + #13#10 +
+    '  throttle_mbps: 0' + #13#10 +
     '' + #13#10 +
     'destination:' + #13#10 +
     '  type: local' + #13#10 +
-    '  local_path: "' + DestPath + '"' + #13#10 +
+    '  local_path: "' + ExpandConstant('{app}\backups') + '"' + #13#10 +
     '' + #13#10 +
     'retention:' + #13#10 +
-    '  days: ' + RetDays + #13#10 +
+    '  days: 30' + #13#10 +
     '  gfs:' + #13#10 +
     '    enabled: false' + #13#10 +
     '    keep_daily: 7' + #13#10 +
@@ -351,33 +175,22 @@ begin
 end;
 
 // ---------------------------------------------------------------------------
-// ssInstall: write config. ssDone: show summary.
+// ssInstall: write template config. ssDone: show completion message.
 // ---------------------------------------------------------------------------
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssInstall then
-    WriteConfigFile;
+    WriteConfigTemplate;
 
   if CurStep = ssDone then
-  begin
-    if WizardIsTaskSelected('installservice') then
-      MsgBox(
-        '{#AppName} {#AppVersion} installed successfully.' + #13#10#13#10 +
-        'The BackupSMC service has been registered and started.' + #13#10 +
-        'You can manage it from services.msc or using the CLI:' + #13#10#13#10 +
-        '  backupsmc-agent.exe start-service' + #13#10 +
-        '  backupsmc-agent.exe stop-service' + #13#10#13#10 +
-        'Configuration file: ' + ExpandConstant('{app}\{#DefaultCfg}'),
-        mbInformation, MB_OK
-      )
-    else
-      MsgBox(
-        '{#AppName} {#AppVersion} installed successfully.' + #13#10#13#10 +
-        'To run as a Windows service, open an Administrator prompt and run:' + #13#10 +
-        '  backupsmc-agent.exe install-service' + #13#10#13#10 +
-        'Or run a single backup job with:' + #13#10 +
-        '  backupsmc-agent.exe run -c "' + ExpandConstant('{app}\{#DefaultCfg}') + '"',
-        mbInformation, MB_OK
-      );
-  end;
+    MsgBox(
+      '{#AppName} {#AppVersion} installed successfully.' + #13#10#13#10 +
+      'Next steps:' + #13#10 +
+      '  1. Open the BackupSMC web interface.' + #13#10 +
+      '  2. Copy the Agent API Token from Settings.' + #13#10 +
+      '  3. Edit the configuration file and set server URL, token and passphrase:' + #13#10 +
+      '     ' + ExpandConstant('{app}\{#DefaultCfg}') + #13#10#13#10 +
+      '  4. Start the service:  backupsmc-agent.exe start-service',
+      mbInformation, MB_OK
+    );
 end;
