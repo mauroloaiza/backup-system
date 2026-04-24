@@ -133,8 +133,8 @@ func (a *App) shutdown(ctx context.Context) {}
 
 func resolveConfigPath() string {
 	candidates := []string{
-		filepath.Join(os.Getenv("PROGRAMFILES"), "BackupSMC", "Agent", "agent.yaml"),
 		filepath.Join(os.Getenv("PROGRAMDATA"), "BackupSMC", "agent.yaml"),
+		filepath.Join(os.Getenv("PROGRAMFILES"), "BackupSMC", "Agent", "agent.yaml"),
 		"agent.yaml",
 	}
 	for _, p := range candidates {

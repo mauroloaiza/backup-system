@@ -56,14 +56,14 @@ Source: "..\BackupSMC.exe";                    DestDir: "{app}";  Flags: ignorev
 Source: "..\agent.example.yaml";               DestDir: "{app}";  Flags: ignoreversion
 
 [Dirs]
-; Create logs directory
-Name: "{app}\logs"
-; Default local backup destination (user can change in config)
-Name: "{app}\backups"
+; ProgramData folder — writable without UAC, used for config + logs
+Name: "{commonappdata}\BackupSMC"
+Name: "{commonappdata}\BackupSMC\logs"
+Name: "{commonappdata}\BackupSMC\backups"
 
 [Icons]
 Name: "{group}\BackupSMC";            Filename: "{app}\{#GUIExeName}";   WorkingDir: "{app}"
-Name: "{group}\Edit Configuration";   Filename: "notepad.exe";            Parameters: "{app}\{#DefaultCfg}"
+Name: "{group}\Edit Configuration";   Filename: "notepad.exe";            Parameters: "{commonappdata}\BackupSMC\{#DefaultCfg}"
 Name: "{group}\Uninstall BackupSMC";  Filename: "{uninstallexe}"
 Name: "{commondesktop}\BackupSMC";    Filename: "{app}\{#GUIExeName}";   WorkingDir: "{app}"; Tasks: desktopicon
 
@@ -71,8 +71,8 @@ Name: "{commondesktop}\BackupSMC";    Filename: "{app}\{#GUIExeName}";   Working
 ; Stop service before upgrade (ignore errors if not installed)
 Filename: "{app}\{#AppExeName}"; Parameters: "stop-service";      Flags: runhidden nowait skipifdoesntexist; StatusMsg: "Stopping existing service..."
 
-; Install and start the Windows service
-Filename: "{app}\{#AppExeName}"; Parameters: "install-service -c ""{app}\{#DefaultCfg}"""; \
+; Install and start the Windows service (config lives in ProgramData — no UAC needed)
+Filename: "{app}\{#AppExeName}"; Parameters: "install-service -c ""{commonappdata}\BackupSMC\{#DefaultCfg}"""; \
     Flags: runhidden; StatusMsg: "Installing Windows service..."; \
     Tasks: installservice
 
@@ -86,7 +86,7 @@ Filename: "{app}\{#GUIExeName}"; \
     Flags: postinstall nowait skipifsilent unchecked
 
 ; Post-install: open config file for review
-Filename: "notepad.exe"; Parameters: "{app}\{#DefaultCfg}"; \
+Filename: "notepad.exe"; Parameters: "{commonappdata}\BackupSMC\{#DefaultCfg}"; \
     Description: "Open configuration file to review settings"; \
     Flags: postinstall nowait skipifsilent unchecked
 
@@ -107,14 +107,15 @@ var
   CfgPath: String;
   Content: String;
 begin
-  CfgPath := ExpandConstant('{app}\{#DefaultCfg}');
+  // Config lives in ProgramData — writable without UAC elevation.
+  CfgPath := ExpandConstant('{commonappdata}\BackupSMC\{#DefaultCfg}');
 
   // Never overwrite an existing config (upgrade path).
   if FileExists(CfgPath) then Exit;
 
   Content :=
     '# BackupSMC Agent Configuration — v{#AppVersion}' + #13#10 +
-    '# Configure server URL and token via the BackupSMC web interface,' + #13#10 +
+    '# Configure server URL and token via the BackupSMC GUI,' + #13#10 +
     '# or edit this file directly and restart the service.' + #13#10 +
     '' + #13#10 +
     'server:' + #13#10 +
@@ -123,7 +124,7 @@ begin
     '  timeout: 30s' + #13#10 +
     '' + #13#10 +
     'backup:' + #13#10 +
-    '  source_paths: []               # Configure via web UI or add paths here' + #13#10 +
+    '  source_paths: []               # Configure via BackupSMC GUI or add paths here' + #13#10 +
     '  exclude_patterns:' + #13#10 +
     '    - "*.tmp"' + #13#10 +
     '    - "*.log"' + #13#10 +
@@ -139,7 +140,7 @@ begin
     '' + #13#10 +
     'destination:' + #13#10 +
     '  type: local' + #13#10 +
-    '  local_path: "' + ExpandConstant('{app}\backups') + '"' + #13#10 +
+    '  local_path: "' + ExpandConstant('{commonappdata}\BackupSMC\backups') + '"' + #13#10 +
     '' + #13#10 +
     'retention:' + #13#10 +
     '  days: 30' + #13#10 +
@@ -155,8 +156,8 @@ begin
     '' + #13#10 +
     'log:' + #13#10 +
     '  level: info' + #13#10 +
-    '  format: console' + #13#10 +
-    '  path: stdout' + #13#10 +
+    '  format: json' + #13#10 +
+    '  path: "' + ExpandConstant('{commonappdata}\BackupSMC\logs\backupsmc.log') + '"' + #13#10 +
     '' + #13#10 +
     'notify:' + #13#10 +
     '  email:' + #13#10 +
@@ -188,7 +189,7 @@ begin
       '  1. Open the BackupSMC web interface.' + #13#10 +
       '  2. Copy the Agent API Token from Settings.' + #13#10 +
       '  3. Edit the configuration file and set server URL, token and passphrase:' + #13#10 +
-      '     ' + ExpandConstant('{app}\{#DefaultCfg}') + #13#10#13#10 +
+      '     ' + ExpandConstant('{commonappdata}\BackupSMC\{#DefaultCfg}') + #13#10#13#10 +
       '  4. Start the service:  backupsmc-agent.exe start-service',
       mbInformation, MB_OK
     );
