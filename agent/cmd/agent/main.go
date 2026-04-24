@@ -19,6 +19,7 @@ import (
 	"github.com/smcsoluciones/backup-system/agent/internal/backup/restore"
 	"github.com/smcsoluciones/backup-system/agent/internal/config"
 	"github.com/smcsoluciones/backup-system/agent/internal/configsync"
+	"github.com/smcsoluciones/backup-system/agent/internal/restoresync"
 	"github.com/smcsoluciones/backup-system/agent/internal/destination/factory"
 	"github.com/smcsoluciones/backup-system/agent/internal/destination/local"
 	"github.com/smcsoluciones/backup-system/agent/internal/noderegister"
@@ -162,6 +163,14 @@ func runSchedulerLoop() error {
 	syncer := configsync.New(cfg.Server.URL, cfg.Server.APIToken,
 		resolveNodeID(), resolvedConfigPath(), cfg, log)
 	syncer.Start(ctx)
+
+	// Start restore syncer (polls /nodes/{id}/restore/pending every 60s).
+	// Mutex inside the syncer serialises restore executions so only one
+	// runs at a time per agent.
+	restorer := restoresync.New(cfg.Server.URL, cfg.Server.APIToken,
+		resolveNodeID(), cfg, log)
+	restorer.Start(ctx)
+
 
 	// Run immediately on start.
 	if err := runOnce(ctx, cfg, log, ""); err != nil {

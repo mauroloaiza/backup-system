@@ -9,6 +9,33 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
+## [0.11.1] - 2026-04-22
+
+### Added — Agente: polling de restauraciones remotas
+
+Cierra el ciclo de restauración empezado en v0.11.0. El agente ahora ejecuta las solicitudes encoladas desde la web sin intervención manual.
+
+**Agent** (v0.4.0):
+- Nuevo paquete `internal/restoresync` — goroutine que poll al `/api/v1/nodes/{id}/restore/pending` cada 60s (primer poll a los 15s de arrancar).
+- Cuando el server devuelve una solicitud (status flipped a `running` atómicamente), el agente:
+  1. Reporta `running` con mensaje "agente iniciando restauración".
+  2. Abre el destino vía `factory.New(cfg)` (reutiliza local/S3/SFTP configurado).
+  3. Invoca `restore.Engine.Run()` con `JobID`, `TargetPath`, `Passphrase` (tomada de cfg local — **nunca viaja**), `Filter`, `DryRun=pr.DryRun`, `RestoreACLs=true`.
+  4. Reporta terminal `completed` (o `failed` si hay `ErrorFiles > 0`) con resumen: "restaurados=N omitidos=M errores=E duración=Xs".
+- Mutex interno — un solo restore a la vez por agente. Si llega otro mientras hay uno en curso, el nuevo se marca `failed` con "agent busy" (no queda huérfano).
+- La passphrase nunca viaja al servidor: el agente la lee de su `agent.yaml` local.
+
+**Notas operativas**:
+- La base de código del restore engine ya existía desde v0.4.1 (CLI `backupsmc-agent restore`). v0.11.1 simplemente le añade un *driver* de polling — no hay cambios en la lógica de descifrado, decompresión ni ACLs.
+- Si el agente crashea a mitad de un restore, la fila queda en `running` server-side. El operador puede cancelarla vía UI (sólo se pueden cancelar las `queued`, así que habrá que añadir lease expiry en v0.11.2).
+- El `bytes_restored` reportado es 0 por ahora — `restore.Result` no expone el conteo de bytes. Se añadirá cuando `FileResult` incluya el tamaño.
+
+**Deploy**:
+- Binario Windows: recompilar con `GOOS=windows GOARCH=amd64 go build -o backupsmc-agent.exe ./cmd/agent` desde `agent/`.
+- Instalador Inno Setup: siguiente release bumpea `AppVersion` a 0.4.0 y actualiza el `agent-version.json` público (si aplica para este producto).
+
+---
+
 ## [0.11.0] - 2026-04-22
 
 ### Added — Restore wizard + queue server-side

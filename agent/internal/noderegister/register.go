@@ -16,7 +16,7 @@ import (
 	"github.com/smcsoluciones/backup-system/agent/internal/config"
 )
 
-const agentVersion = "0.3.0"
+const agentVersion = "0.4.0"
 
 // Destination is the payload-shape for a single configured destination that
 // the server exposes on GET /api/v1/destinations.
