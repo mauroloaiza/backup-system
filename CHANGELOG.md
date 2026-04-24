@@ -9,6 +9,31 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
+## [0.11.0] - 2026-04-22
+
+### Added — Restore wizard + queue server-side
+
+Primera mitad del ciclo de restauración desde la web: el usuario encola una solicitud desde el detalle de un job completado, y el agente la recoge por polling. La ejecución end-to-end aterriza cuando el agente adopte el nuevo endpoint (v0.11.1).
+
+**Server**:
+- Nuevo modelo `RestoreRequest` (`restore_requests`) con estados `queued | running | completed | failed | cancelled`, `files_restored` / `bytes_restored`, mensaje libre, y trazabilidad (`requested_by`, `created_at`, `started_at`, `finished_at`).
+- `POST /api/v1/nodes/{id}/restore` — crea una solicitud. Valida que el `source_job_id` exista, pertenezca al mismo nodo, y esté en estado `completed`.
+- `GET  /api/v1/restore` — listado para la UI (filtros por `node_id` y `status`).
+- `GET  /api/v1/restore/{id}` — detalle.
+- `POST /api/v1/restore/{id}/cancel` — cancelar una solicitud aún en cola.
+- `GET  /api/v1/nodes/{id}/restore/pending` (X-Agent-Token) — endpoint de polling del agente. Devuelve la solicitud más vieja en `queued` y la marca como `running` atómicamente; `204` si no hay trabajo.
+- `POST /api/v1/restore/{id}/progress` (X-Agent-Token) — el agente reporta progreso / resultado. Al llegar a estado terminal (`completed` / `failed`) se dispara una notificación in-app al usuario que la pidió.
+- Nuevos schemas: `RestoreRequestCreate`, `RestoreRequestOut`, `RestorePendingOut`, `RestoreProgressUpdate`.
+
+**Frontend**:
+- Nuevo componente `RestoreWizard` — modal con ruta destino, filtro glob opcional y toggle `dry-run`. Se abre desde el botón "Restaurar" en el detalle de un job completado.
+- Nueva página `/restore` en el sidebar, con tabla de solicitudes y refresh automático cada 10s; botón Cancelar para entradas aún en cola.
+- API helpers: `createRestoreRequest`, `fetchRestoreRequests`, `fetchRestoreRequest`, `cancelRestoreRequest`.
+
+**Pendiente v0.11.1**: el agente Go necesita (1) un goroutine `restoresync` que haga polling al `/restore/pending`, (2) invocar `restore --job-id --target --filter --dry-run` sobre sí mismo o usar el código interno directamente, (3) reportar progreso a `/restore/{id}/progress`. El CLI de restauración ya existe desde v0.4.1.
+
+---
+
 ## [0.10.0] - 2026-04-20
 
 ### Changed — Migración SQLite → PostgreSQL

@@ -205,3 +205,44 @@ class Notification(Base):
     entity_id: Mapped[str] = mapped_column(String(64), nullable=True)
     read: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+# Appended to server/app/models.py (before the last newline)
+
+class RestoreRequest(Base):
+    """
+    A queued restore request created from the web UI.
+
+    Flow:
+      1. Web user picks a job_run + target_path (+ optional filter) → row inserted with status="queued".
+      2. Agent polls /api/v1/nodes/{id}/restore/pending with X-Agent-Token.
+         Server atomically flips the oldest queued row to "running" and returns it.
+      3. Agent executes `restore --job-id --target --filter`, reports progress at
+         /api/v1/restore/{id}/progress (status=running|completed|failed + message).
+      4. Web UI polls GET /api/v1/restore (list) or /api/v1/restore/{id} (detail).
+    """
+    __tablename__ = "restore_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    node_id: Mapped[str] = mapped_column(String(64), ForeignKey("nodes.id", ondelete="CASCADE"),
+                                          index=True, nullable=False)
+    # The job we want to restore from (matches JobRun.job_id, not the numeric PK).
+    source_job_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    # Where on the agent's filesystem to restore to.
+    target_path: Mapped[str] = mapped_column(Text, nullable=False)
+    # Optional glob/path filter passed to `restore --filter`.
+    filter_pattern: Mapped[str] = mapped_column(Text, nullable=True)
+    # If true, agent runs `--dry-run` (list files that *would* be restored).
+    dry_run: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # queued | running | completed | failed | cancelled
+    status: Mapped[str] = mapped_column(String(16), default="queued", index=True)
+    # Free-form progress / error message from the agent.
+    message: Mapped[str] = mapped_column(Text, nullable=True)
+    files_restored: Mapped[int] = mapped_column(BigInteger, default=0)
+    bytes_restored: Mapped[int] = mapped_column(BigInteger, default=0)
+
+    # Audit trail.
+    requested_by: Mapped[str] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

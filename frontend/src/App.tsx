@@ -6,6 +6,7 @@ import { Jobs } from '@/pages/Jobs'
 import { Nodes } from '@/pages/Nodes'
 import { History } from '@/pages/History'
 import { Destinations } from '@/pages/Destinations'
+import { Restore } from '@/pages/Restore'
 import { Settings } from '@/pages/Settings'
 import { Login } from '@/pages/Login'
 import { useAuth } from '@/store/auth'
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="nodes" element={<Nodes />} />
             <Route path="history" element={<History />} />
             <Route path="destinations" element={<Destinations />} />
+            <Route path="restore" element={<Restore />} />
             <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>

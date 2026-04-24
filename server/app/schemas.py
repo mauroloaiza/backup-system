@@ -302,3 +302,46 @@ class DashboardStats(BaseModel):
     bytes_backed_up_total: int
     recent_runs: list[JobRunOut]
     running_now: list[JobRunOut]
+# Appended to server/app/schemas.py
+
+# ── Restore Requests ──────────────────────────────────────────────────────────
+
+class RestoreRequestCreate(BaseModel):
+    source_job_id: str = Field(..., description="JobRun.job_id de origen")
+    target_path: str = Field(..., min_length=1, description="Ruta destino en el agente")
+    filter_pattern: Optional[str] = Field(None, description="Patrón glob opcional (ej: 'Documents/*')")
+    dry_run: bool = False
+
+class RestoreRequestOut(BaseModel):
+    id: int
+    node_id: str
+    source_job_id: str
+    target_path: str
+    filter_pattern: Optional[str]
+    dry_run: bool
+    status: str
+    message: Optional[str]
+    files_restored: int
+    bytes_restored: int
+    requested_by: Optional[str]
+    created_at: datetime
+    started_at: Optional[datetime]
+    finished_at: Optional[datetime]
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class RestorePendingOut(BaseModel):
+    """What the agent receives on /restore/pending when there's work."""
+    id: int
+    source_job_id: str
+    target_path: str
+    filter_pattern: Optional[str]
+    dry_run: bool
+
+class RestoreProgressUpdate(BaseModel):
+    status: str  # running | completed | failed
+    message: Optional[str] = None
+    files_restored: Optional[int] = 0
+    bytes_restored: Optional[int] = 0

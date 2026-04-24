@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { RestoreWizard } from '@/components/RestoreWizard'
 import { useQuery } from '@tanstack/react-query'
 import { fetchJobs, type JobRun } from '@/lib/api'
 import { Badge } from '@/components/Badge'
@@ -121,8 +122,13 @@ export function Jobs() {
 // ── Job Detail Modal ──────────────────────────────────────────────────────────
 
 function JobDetailModal({ run, onClose }: { run: JobRun; onClose: () => void }) {
+  const [showRestore, setShowRestore] = useState(false)
+  const canRestore = run.status === 'completed' && !!run.node_id
   return (
     <>
+      {showRestore && (
+        <RestoreWizard run={run} onClose={() => setShowRestore(false)} />
+      )}
       {/* backdrop */}
       <div
         className="fixed inset-0 bg-black/30 backdrop-blur-[2px] z-40"
@@ -136,14 +142,24 @@ function JobDetailModal({ run, onClose }: { run: JobRun; onClose: () => void }) 
             <p className="text-sm font-bold text-gray-800">Detalle del job</p>
             <p className="text-xs font-mono text-gray-400 mt-0.5">{run.job_id}</p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-gray-100"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2">
+            {canRestore && (
+              <button
+                onClick={() => setShowRestore(true)}
+                className="text-[11px] font-semibold text-white bg-primary hover:bg-[#3451d1] px-3 py-1.5 rounded-lg transition-colors"
+              >
+                Restaurar
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-gray-100"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">

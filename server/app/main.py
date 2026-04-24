@@ -13,7 +13,7 @@ import os
 
 from app.database import engine, get_db, Base, is_postgres
 from app import bootstrap_migrate
-from app.models import Node, JobRun, User, AgentToken, SystemSetting, Notification, EmailSettings, NodeConfig
+from app.models import Node, JobRun, User, AgentToken, SystemSetting, Notification, EmailSettings, NodeConfig, RestoreRequest
 from app.schemas import (
     NodeRegister, NodeOut, NodeSourcePathsUpdate, DestinationAggregate,
     NodeConfigOut, NodeConfigUpdate, NodeConfigPayload, NodeConfigPull,
@@ -26,6 +26,7 @@ from app.schemas import (
     LoginRequest, Token, UserOut,
     NotificationOut, NotificationList,
     EmailSettingsOut, EmailSettingsUpdate, EmailTestRequest,
+    RestoreRequestCreate, RestoreRequestOut, RestorePendingOut, RestoreProgressUpdate,
 )
 from app.auth import (
     verify_password, hash_password, create_access_token,
@@ -99,7 +100,7 @@ _seed_agent_token()
 app = FastAPI(
     title="BackupSMC API",
     description="API REST del sistema de backup empresarial BackupSMC",
-    version="0.10.0",
+    version="0.11.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -139,7 +140,7 @@ if os.path.isdir(_dashboard_dist):
 
 @app.get("/health", tags=["health"])
 def health_check():
-    return {"status": "ok", "service": "backupsmc-server", "version": "0.10.0"}
+    return {"status": "ok", "service": "backupsmc-server", "version": "0.11.0"}
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -797,3 +798,161 @@ def update_settings(body: SettingsUpdate, db: Session = Depends(get_db)):
     if body.notify_daily_summary is not None:
         _set_setting(db, "notify_daily_summary", str(body.notify_daily_summary).lower())
     return get_settings(db)
+# Appended to server/app/main.py — RESTORE endpoints
+# Placed after the notifications block, before the settings PUT.
+
+
+# ── Restore Requests ──────────────────────────────────────────────────────────
+
+@app.post("/api/v1/nodes/{node_id}/restore", response_model=RestoreRequestOut, tags=["restore"],
+          dependencies=[Depends(get_current_user)])
+def create_restore_request(
+    node_id: str,
+    body: RestoreRequestCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Queue a restore request for a node. Agent picks it up via /restore/pending."""
+    node = db.query(Node).filter(Node.id == node_id).first()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    # Validate the source job belongs to this node.
+    src = db.query(JobRun).filter(JobRun.job_id == body.source_job_id).first()
+    if not src:
+        raise HTTPException(status_code=404, detail="Job de origen no encontrado")
+    if src.node_id and src.node_id != node_id:
+        raise HTTPException(status_code=400, detail="El job de origen pertenece a otro nodo")
+    if src.status != "completed":
+        raise HTTPException(status_code=400, detail="Sólo se pueden restaurar jobs completados")
+
+    rr = RestoreRequest(
+        node_id=node_id,
+        source_job_id=body.source_job_id,
+        target_path=body.target_path,
+        filter_pattern=body.filter_pattern,
+        dry_run=body.dry_run,
+        status="queued",
+        requested_by=current_user.username,
+    )
+    db.add(rr)
+    db.commit()
+    db.refresh(rr)
+    return rr
+
+
+@app.get("/api/v1/restore", response_model=list[RestoreRequestOut], tags=["restore"],
+         dependencies=[Depends(get_current_user)])
+def list_restore_requests(
+    node_id: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    limit: int = Query(100, le=500),
+    db: Session = Depends(get_db),
+):
+    q = db.query(RestoreRequest)
+    if node_id:
+        q = q.filter(RestoreRequest.node_id == node_id)
+    if status:
+        q = q.filter(RestoreRequest.status == status)
+    return q.order_by(RestoreRequest.created_at.desc()).limit(limit).all()
+
+
+@app.get("/api/v1/restore/{restore_id}", response_model=RestoreRequestOut, tags=["restore"],
+         dependencies=[Depends(get_current_user)])
+def get_restore_request(restore_id: int, db: Session = Depends(get_db)):
+    rr = db.query(RestoreRequest).filter(RestoreRequest.id == restore_id).first()
+    if not rr:
+        raise HTTPException(status_code=404, detail="Restore request not found")
+    return rr
+
+
+@app.post("/api/v1/restore/{restore_id}/cancel", response_model=RestoreRequestOut, tags=["restore"],
+          dependencies=[Depends(get_current_user)])
+def cancel_restore_request(restore_id: int, db: Session = Depends(get_db)):
+    rr = db.query(RestoreRequest).filter(RestoreRequest.id == restore_id).first()
+    if not rr:
+        raise HTTPException(status_code=404, detail="Restore request not found")
+    if rr.status not in ("queued",):
+        raise HTTPException(status_code=400, detail="Sólo se pueden cancelar restauraciones en cola")
+    rr.status = "cancelled"
+    rr.finished_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(rr)
+    return rr
+
+
+@app.get("/api/v1/nodes/{node_id}/restore/pending", tags=["restore"],
+         dependencies=[Depends(require_agent_token)])
+def pull_pending_restore(node_id: str, db: Session = Depends(get_db)):
+    """
+    Agent endpoint. Returns the oldest queued RestoreRequest for this node and
+    atomically flips its status to "running". 204 No Content if no work.
+    """
+    from fastapi import Response
+
+    rr = (db.query(RestoreRequest)
+          .filter(RestoreRequest.node_id == node_id, RestoreRequest.status == "queued")
+          .order_by(RestoreRequest.created_at.asc())
+          .first())
+    if not rr:
+        return Response(status_code=204)
+
+    rr.status = "running"
+    rr.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(rr)
+
+    return RestorePendingOut(
+        id=rr.id,
+        source_job_id=rr.source_job_id,
+        target_path=rr.target_path,
+        filter_pattern=rr.filter_pattern,
+        dry_run=rr.dry_run,
+    )
+
+
+@app.post("/api/v1/restore/{restore_id}/progress", response_model=RestoreRequestOut, tags=["restore"],
+          dependencies=[Depends(require_agent_token)])
+def report_restore_progress(
+    restore_id: int,
+    body: RestoreProgressUpdate,
+    db: Session = Depends(get_db),
+):
+    """Agent reports status updates for a running restore."""
+    rr = db.query(RestoreRequest).filter(RestoreRequest.id == restore_id).first()
+    if not rr:
+        raise HTTPException(status_code=404, detail="Restore request not found")
+    if body.status not in ("running", "completed", "failed"):
+        raise HTTPException(status_code=400, detail="Estado inválido")
+
+    rr.status = body.status
+    if body.message is not None:
+        rr.message = body.message
+    if body.files_restored is not None:
+        rr.files_restored = body.files_restored
+    if body.bytes_restored is not None:
+        rr.bytes_restored = body.bytes_restored
+    if body.status in ("completed", "failed") and not rr.finished_at:
+        rr.finished_at = datetime.now(timezone.utc)
+
+    db.commit()
+    db.refresh(rr)
+
+    # Create an in-app notification on terminal status so admins see it in the bell.
+    if body.status in ("completed", "failed"):
+        try:
+            admin = db.query(User).filter(User.username == (rr.requested_by or "admin")).first()
+            if admin:
+                notifications_service.create_for_user(
+                    db,
+                    user_id=admin.id,
+                    type="backup_completed" if body.status == "completed" else "backup_failed",
+                    title=f"Restore {body.status}: {rr.source_job_id[:8]}…",
+                    body=(rr.message or f"Target: {rr.target_path}"),
+                    entity_type="restore_request",
+                    entity_id=str(rr.id),
+                )
+        except Exception:
+            pass
+
+    return rr

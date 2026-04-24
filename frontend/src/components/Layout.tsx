@@ -12,6 +12,7 @@ const titles: Record<string, string> = {
   '/nodes': 'Nodos',
   '/history': 'Historial',
   '/destinations': 'Destinos',
+  '/restore': 'Restauraciones',
   '/settings': 'Configuración',
 }
 

@@ -291,3 +291,42 @@ export const markNotificationRead = (id: number) =>
 
 export const markAllNotificationsRead = () =>
   api.post('/notifications/mark-all-read').then(r => r.data)
+
+// ── Restore Requests ──────────────────────────────────────────────────────────
+
+export interface RestoreRequest {
+  id: number
+  node_id: string
+  source_job_id: string
+  target_path: string
+  filter_pattern: string | null
+  dry_run: boolean
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+  message: string | null
+  files_restored: number
+  bytes_restored: number
+  requested_by: string | null
+  created_at: string
+  started_at: string | null
+  finished_at: string | null
+  updated_at: string
+}
+
+export interface RestoreRequestCreate {
+  source_job_id: string
+  target_path: string
+  filter_pattern?: string
+  dry_run?: boolean
+}
+
+export const createRestoreRequest = (nodeId: string, data: RestoreRequestCreate) =>
+  api.post<RestoreRequest>(`/nodes/${nodeId}/restore`, data).then(r => r.data)
+
+export const fetchRestoreRequests = (params?: { node_id?: string; status?: string; limit?: number }) =>
+  api.get<RestoreRequest[]>('/restore', { params }).then(r => r.data)
+
+export const fetchRestoreRequest = (id: number) =>
+  api.get<RestoreRequest>(`/restore/${id}`).then(r => r.data)
+
+export const cancelRestoreRequest = (id: number) =>
+  api.post<RestoreRequest>(`/restore/${id}/cancel`).then(r => r.data)
